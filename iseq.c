@@ -580,10 +580,15 @@ rb_iseq_compile_with_option(VALUE src, VALUE file, VALUE absolute_path, VALUE li
     if ((state = EXEC_TAG()) == 0) {
 	int ln = NUM2INT(line);
 	const char *fn = StringValueCStr(file);
-	NODE *node = parse_string(StringValue(src), fn, ln);
+	NODE *node;
 	rb_compile_option_t option;
 
 	make_compile_option(&option, opt);
+
+	if (RB_TYPE_P((src), T_FILE))
+	    node = rb_compile_file(fn, src, ln);
+	else
+	    node = rb_compile_string(fn, StringValue(src), ln);
 
 	if (base_block && base_block->iseq) {
 	    iseqval = rb_iseq_new_with_opt(node, base_block->iseq->location.label,
