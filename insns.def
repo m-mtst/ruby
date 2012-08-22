@@ -2013,7 +2013,7 @@ opt_emp
 	}
 	else if (HEAP_CLASS_OF(recv) == rb_cHash &&
 		 BASIC_OP_UNREDEFINED_P(BOP_EMPTY, HASH_REDEFINED_OP_FLAG)) {
-     if (RHASH_EMPTY_P(hash)) val = Qtrue;
+     if (RHASH_EMPTY_P(recv)) val = Qtrue;
      else val = Qfalse;
 	}
 	else {
