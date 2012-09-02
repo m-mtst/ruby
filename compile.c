@@ -1871,7 +1871,7 @@ iseq_specialized_instruction(rb_iseq_t *iseq, INSN *iobj)
 	      case 0:
 		switch (mid) {
 		  case idLength: SP_INSN(length); break;
-		  case idSize:	 SP_INSN(size);	  break;
+		  /* case idSize:	 SP_INSN(size);	  break; */
 		  case idSucc:	 SP_INSN(succ);	  break;
 		  case idNot:	 SP_INSN(not);	  break;
 		}
