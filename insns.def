@@ -2003,18 +2003,18 @@ opt_empty
     if (!SPECIAL_CONST_P(recv)) {
 	if (HEAP_CLASS_OF(recv) == rb_cString &&
 	    BASIC_OP_UNREDEFINED_P(BOP_EMPTY, STRING_REDEFINED_OP_FLAG)) {
-      if (RSTRING_LEN(recv) == 0) val = Qtrue;
-      else val = Qfalse;
+	    if (RSTRING_LEN(recv) == 0) val = Qtrue;
+	    else val = Qfalse;
 	}
 	else if (HEAP_CLASS_OF(recv) == rb_cArray &&
 		 BASIC_OP_UNREDEFINED_P(BOP_EMPTY, ARRAY_REDEFINED_OP_FLAG)) {
-     if (RARRAY_LEN(recv) == 0) val = Qtrue;
-     else val = Qfalse;
+	    if (RARRAY_LEN(recv) == 0) val = Qtrue;
+	    else val = Qfalse;
 	}
 	else if (HEAP_CLASS_OF(recv) == rb_cHash &&
 		 BASIC_OP_UNREDEFINED_P(BOP_EMPTY, HASH_REDEFINED_OP_FLAG)) {
-     if (RHASH_EMPTY_P(recv)) val = Qtrue;
-     else val = Qfalse;
+	    if (RHASH_EMPTY_P(recv)) val = Qtrue;
+	    else val = Qfalse;
 	}
 	else {
 	    goto INSN_LABEL(normal_dispatch);
