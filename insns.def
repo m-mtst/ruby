@@ -1995,7 +1995,7 @@ opt_size
   @j 最適化された recv.empty?()。
  */
 DEFINE_INSN
-opt_emp
+opt_empty
 (IC ic)
 (VALUE recv)
 (VALUE val)
