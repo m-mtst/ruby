@@ -136,7 +136,7 @@ class TestRubyOptimization < Test::Unit::TestCase
 
   def test_hash_empty?
     assert_equal true, {}.empty?
-    assert_equal false {1=>1}.empty?
+    assert_equal false, {1=>1}.empty?
   end
 
   class MyObj
