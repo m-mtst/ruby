@@ -174,6 +174,11 @@ class Tempfile < DelegateClass(File)
     "#<Tempfile:#{path}>"
   end
 
+  alias :__dup__ :dup
+  def dup
+    self.__dup__.__setobj__(self.__getobj__.dup)
+  end
+
   protected :_close
 
   # Closes the file. If +unlink_now+ is true, then the file will be unlinked
