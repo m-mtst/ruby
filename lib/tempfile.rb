@@ -169,6 +169,11 @@ class Tempfile < DelegateClass(File)
       @data[1] = nil if @data
     end
   end
+
+  def inspect
+    "#<Tempfile:#{self.path}>"
+  end
+
   protected :_close
 
   # Closes the file. If +unlink_now+ is true, then the file will be unlinked
