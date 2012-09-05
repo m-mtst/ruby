@@ -171,7 +171,7 @@ class Tempfile < DelegateClass(File)
   end
 
   def inspect
-    "#<Tempfile:#{self.path}>"
+    "#<Tempfile:#{path}>"
   end
 
   protected :_close
