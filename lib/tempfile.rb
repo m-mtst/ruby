@@ -129,8 +129,10 @@ class Tempfile < DelegateClass(File)
     if block_given?
       warn "Tempfile.new doesn't call the given block."
     end
+    #ObjectSpace.undefine_finalizer(self)
     @data = []
     @clean_proc = Remover.new(@data)
+    @basename = basename
     ObjectSpace.define_finalizer(self, @clean_proc)
 
     create(basename, *rest) do |tmpname, n, opts|
@@ -174,9 +176,10 @@ class Tempfile < DelegateClass(File)
     "#<Tempfile:#{path}>"
   end
 
-  alias :__dup__ :dup
   def dup
-    self.__dup__.__setobj__(self.__getobj__.dup)
+    self_d = self.class.new(@basename)
+    IO.copy_stream(__getobj__, self_d, nil, 0)
+    self_d
   end
 
   protected :_close
