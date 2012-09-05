@@ -173,7 +173,7 @@ class Tempfile < DelegateClass(File)
   end
 
   def inspect
-    "#<Tempfile:#{path}>"
+    "#<#{self.class.name}:#{path}>"
   end
 
   def dup
