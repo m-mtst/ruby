@@ -81,7 +81,7 @@ require 'thread'
 class Tempfile < DelegateClass(File)
   include Dir::Tmpname
 
-  @@tmp_map = {}
+  @@tmp_map = Hash.new(0)
 
   # call-seq:
   #    new(basename, [tmpdir = Dir.tmpdir], [options])
@@ -148,7 +148,7 @@ class Tempfile < DelegateClass(File)
       end
       @data[1] = @tmpfile = File.open(tmpname, mode, opts)
       @data[0] = @tmpname = tmpname
-      @@temp_map[tmpname] = 1
+      @@temp_map[tmpname] += 1
       @mode = mode & ~(File::CREAT|File::EXCL)
       perm or opts.freeze
       @opts = opts
