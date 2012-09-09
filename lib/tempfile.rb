@@ -155,6 +155,13 @@ class Tempfile < DelegateClass(File)
     super(@tmpfile)
   end
 
+  def dup
+    self_d = super
+    self_d.__setobj__(__getobj__.dup)
+    @@temp_map[@tmpname] += 1
+    self_d
+  end
+
   # Opens or reopens the file with mode "r+".
   def open
     @tmpfile.close if @tmpfile
