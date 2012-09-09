@@ -131,7 +131,6 @@ class Tempfile < DelegateClass(File)
     if block_given?
       warn "Tempfile.new doesn't call the given block."
     end
-    #ObjectSpace.undefine_finalizer(self)
     @data = []
     @clean_proc = Remover.new(@data)
     ObjectSpace.define_finalizer(self, @clean_proc)
