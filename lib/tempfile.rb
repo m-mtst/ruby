@@ -155,9 +155,18 @@ class Tempfile < DelegateClass(File)
     super(@tmpfile)
   end
 
+  def __setobj__(tmpfile)
+    @tmpfile = tmpfile
+    super
+  end
+
+  def inspect
+    "#<#{self.class}:#{path}>"
+  end
+
   def dup
     self_d = super
-    self_d.__setobj__(self_d.__getobj__.dup)
+    self_d.__setobj__(__getobj__.dup)
     @@tmpmap[@tmpname] += 1
     self_d
   end
@@ -283,7 +292,7 @@ class Tempfile < DelegateClass(File)
 
       path, tmpfile = *@data
 
-      return if (@@tmpmap[path] -= 1) == 0
+      return if (@@tmpmap[path] -= 1) > 0
 
       STDERR.print "removing ", path, "..." if $DEBUG
 
