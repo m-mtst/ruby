@@ -134,7 +134,6 @@ class Tempfile < DelegateClass(File)
     #ObjectSpace.undefine_finalizer(self)
     @data = []
     @clean_proc = Remover.new(@data)
-    @basename = basename
     ObjectSpace.define_finalizer(self, @clean_proc)
 
     create(basename, *rest) do |tmpname, n, opts|
