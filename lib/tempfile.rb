@@ -81,6 +81,8 @@ require 'thread'
 class Tempfile < DelegateClass(File)
   include Dir::Tmpname
 
+  @@tmp_map = {}
+
   # call-seq:
   #    new(basename, [tmpdir = Dir.tmpdir], [options])
   #
@@ -147,11 +149,11 @@ class Tempfile < DelegateClass(File)
       end
       @data[1] = @tmpfile = File.open(tmpname, mode, opts)
       @data[0] = @tmpname = tmpname
+      @@temp_map[tmpname] = 1
       @mode = mode & ~(File::CREAT|File::EXCL)
       perm or opts.freeze
       @opts = opts
     end
-
     super(@tmpfile)
   end
 
@@ -170,16 +172,6 @@ class Tempfile < DelegateClass(File)
       @tmpfile = nil
       @data[1] = nil if @data
     end
-  end
-
-  def inspect
-    "#<#{self.class.name}:#{path}>"
-  end
-
-  def dup
-    self_d = self.class.new(@basename)
-    IO.copy_stream(__getobj__, self_d, nil, 0)
-    self_d
   end
 
   protected :_close
@@ -285,6 +277,8 @@ class Tempfile < DelegateClass(File)
       return if @pid != $$
 
       path, tmpfile = *@data
+
+      return if (@@temp_map[path] -= 1) == 0
 
       STDERR.print "removing ", path, "..." if $DEBUG
 
