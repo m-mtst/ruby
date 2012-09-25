@@ -6365,7 +6365,14 @@ rb_io_reopen(int argc, VALUE *argv, VALUE file)
     }
 
     if (!NIL_P(nmode)) {
-	int fmode = rb_io_modestr_fmode(StringValueCStr(nmode));
+	int fmode;
+	if (RB_TYPE_P(nmode, T_FIXNUM)) {
+	    fmode = FIX2INT(nmode);
+	}
+	else {
+	    fmode = rb_io_modestr_fmode(StringValueCStr(nmode));
+	}
+	    
 	if (IS_PREP_STDIO(fptr) &&
             ((fptr->mode & FMODE_READWRITE) & (fmode & FMODE_READWRITE)) !=
             (fptr->mode & FMODE_READWRITE)) {
