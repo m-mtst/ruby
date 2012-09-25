@@ -155,16 +155,6 @@ class Tempfile < File
     reopen(@tmpname, @mode, @opts)
   end
 
-  def _close    # :nodoc:
-    begin
-      @tmpfile.close if @tmpfile
-    ensure
-      @tmpfile = nil
-      @data[1] = nil if @data
-    end
-  end
-  protected :_close
-
   # Closes the file. If +unlink_now+ is true, then the file will be unlinked
   # (deleted) after closing. Of course, you can choose to later call #unlink
   # if you do not unlink it now.
@@ -172,19 +162,22 @@ class Tempfile < File
   # If you don't explicitly unlink the temporary file, the removal
   # will be delayed until the object is finalized.
   def close(unlink_now=false)
+    begin
+      close unless closed?
+    ensure
+      @tmpfile = nil
+      @data[1] = nil if @data
+    end
     if unlink_now
-      close!
-    else
-      _close
+      unlink
+      ObjectSpace.undefine_finalizer(self)
     end
   end
 
   # Closes and unlinks (deletes) the file. Has the same effect as called
   # <tt>close(true)</tt>.
   def close!
-    _close
-    unlink
-    ObjectSpace.undefine_finalizer(self)
+    close(true)
   end
 
   # Unlinks (deletes) the file from the filesystem. One should always unlink
