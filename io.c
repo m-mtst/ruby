@@ -6345,7 +6345,7 @@ static VALUE
 rb_io_reopen(int argc, VALUE *argv, VALUE file)
 {
     VALUE fname, nmode;
-    int oflags = 0;
+    int oflags;
     rb_io_t *fptr;
 
     rb_secure(4);
