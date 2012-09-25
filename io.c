@@ -6364,7 +6364,6 @@ rb_io_reopen(int argc, VALUE *argv, VALUE file)
 	MEMZERO(fptr, rb_io_t, 1);
     }
 
-    rb_p(nmode);
     if (!NIL_P(nmode)) {
 	int fmode;
 	if (FIXNUM_P(nmode)) {
