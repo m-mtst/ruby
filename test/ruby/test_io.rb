@@ -1720,14 +1720,14 @@ End
           f.reopen(t.path, "r")
           assert_equal("foo\n", f.gets)
         }
-      end 
+      end
 
       open(__FILE__) do |f|
         assert_nothing_raised {
           f.reopen(t.path, File::RDONLY)
           assert_equal("foo\n", f.gets)
         }
-      end 
+      end
     }
   end
 
