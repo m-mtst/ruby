@@ -1713,6 +1713,24 @@ End
     }
   end
 
+  def test_reopen_mode
+    make_tempfile {|t|
+      open(__FILE__) do |f|
+        assert_nothing_raised {
+          f.reopen(t.path, "r")
+          assert_equal("foo\n", f.gets)
+        }
+      end 
+
+      open(__FILE__) do |f|
+        assert_nothing_raised {
+          f.reopen(t.path, File::RDONLY)
+          assert_equal("foo\n", f.gets)
+        }
+      end 
+    }
+  end
+
   def test_foreach
     a = []
     IO.foreach("|" + EnvUtil.rubybin + " -e 'puts :foo; puts :bar; puts :baz'") {|x| a << x }

@@ -6345,7 +6345,7 @@ static VALUE
 rb_io_reopen(int argc, VALUE *argv, VALUE file)
 {
     VALUE fname, nmode;
-    int oflags;
+    int oflags = 0;
     rb_io_t *fptr;
 
     rb_secure(4);
@@ -6365,14 +6365,17 @@ rb_io_reopen(int argc, VALUE *argv, VALUE file)
     }
 
     if (!NIL_P(nmode)) {
+	VALUE intmode;
 	int fmode;
-	if (FIXNUM_P(nmode)) {
-	    fmode = FIX2INT(nmode);
+
+	if (!NIL_P(intmode = rb_check_to_integer(nmode, "to_int"))) {
+	    oflags = NUM2INT(intmode);
+	    fmode = rb_io_oflags_fmode(oflags);
 	}
 	else {
 	    fmode = rb_io_modestr_fmode(StringValueCStr(nmode));
 	}
-	    
+
 	if (IS_PREP_STDIO(fptr) &&
             ((fptr->mode & FMODE_READWRITE) & (fmode & FMODE_READWRITE)) !=
             (fptr->mode & FMODE_READWRITE)) {
@@ -6382,7 +6385,7 @@ rb_io_reopen(int argc, VALUE *argv, VALUE file)
 		     rb_io_fmode_modestr(fmode));
 	}
 	fptr->mode = fmode;
-	if (!FIXNUM_P(nmode)) {
+	if (NIL_P(intmode)) {
 	    rb_io_mode_enc(fptr, StringValueCStr(nmode));
 	}
         fptr->encs.ecflags = 0;
