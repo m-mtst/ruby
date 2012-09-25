@@ -142,19 +142,17 @@ class Tempfile < File
       else
         opts = perm
       end
-      @data[1] = @tmpfile = File.open(tmpname, mode, opts)
+      @data[1] = @tmpfile = super(tmpname, mode, opts)
       @data[0] = @tmpname = tmpname
       @mode = mode & ~(File::CREAT|File::EXCL)
       perm or opts.freeze
       @opts = opts
     end
-
-    @tmpfile
   end
 
   # Opens or reopens the file with mode "r+".
   def open
-    @tmpfile.reopen(@tmpname, @mode, @opts)
+    reopen(@tmpname, @mode, @opts)
   end
 
   def _close    # :nodoc:
