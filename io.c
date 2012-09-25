@@ -6364,9 +6364,10 @@ rb_io_reopen(int argc, VALUE *argv, VALUE file)
 	MEMZERO(fptr, rb_io_t, 1);
     }
 
+    rb_p(nmode);
     if (!NIL_P(nmode)) {
 	int fmode;
-	if (RB_TYPE_P(nmode, T_FIXNUM)) {
+	if (FIXNUM_P(nmode)) {
 	    fmode = FIX2INT(nmode);
 	}
 	else {
@@ -6382,7 +6383,9 @@ rb_io_reopen(int argc, VALUE *argv, VALUE file)
 		     rb_io_fmode_modestr(fmode));
 	}
 	fptr->mode = fmode;
-	rb_io_mode_enc(fptr, StringValueCStr(nmode));
+	if (!FIXNUM_P(nmode)) {
+	    rb_io_mode_enc(fptr, StringValueCStr(nmode));
+	}
         fptr->encs.ecflags = 0;
         fptr->encs.ecopts = Qnil;
     }
