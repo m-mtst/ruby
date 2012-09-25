@@ -4,7 +4,6 @@
 # $Id$
 #
 
-require 'delegate'
 require 'tmpdir'
 require 'thread'
 
@@ -78,7 +77,7 @@ require 'thread'
 # Tempfile itself however may not be entirely thread-safe. If you access the
 # same Tempfile object from multiple threads then you should protect it with a
 # mutex.
-class Tempfile < DelegateClass(File)
+class Tempfile < File
   include Dir::Tmpname
 
   # call-seq:
@@ -150,15 +149,12 @@ class Tempfile < DelegateClass(File)
       @opts = opts
     end
 
-    super(@tmpfile)
+    @tmpfile
   end
 
   # Opens or reopens the file with mode "r+".
   def open
-    @tmpfile.close if @tmpfile
-    @tmpfile = File.open(@tmpname, @mode, @opts)
-    @data[1] = @tmpfile
-    __setobj__(@tmpfile)
+    @tmpfile.reopen(@tmpname, @mode, @opts)
   end
 
   def _close    # :nodoc:
