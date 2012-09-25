@@ -152,7 +152,7 @@ class Tempfile < File
 
   # Opens or reopens the file with mode "r+".
   def open
-    reopen(@tmpname, @mode, @opts)
+    reopen(@tmpname, @mode)
   end
 
   # Closes the file. If +unlink_now+ is true, then the file will be unlinked
@@ -163,7 +163,7 @@ class Tempfile < File
   # will be delayed until the object is finalized.
   def close(unlink_now=false)
     begin
-      close unless closed?
+      super() unless closed?
     ensure
       @tmpfile = nil
       @data[1] = nil if @data
