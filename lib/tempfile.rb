@@ -163,7 +163,7 @@ class Tempfile < File
   # will be delayed until the object is finalized.
   def close(unlink_now=false)
     begin
-      super() unless closed?
+      super() if @tmpfile
     ensure
       @tmpfile = nil
       @data[1] = nil if @data
