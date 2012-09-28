@@ -6365,8 +6365,8 @@ rb_io_reopen(int argc, VALUE *argv, VALUE file)
 	MEMZERO(fptr, rb_io_t, 1);
     }
 
-    rb_io_extract_modeenc(&nmode, 0, opt, &oflags, &fmode, &convconfig);
     if (!NIL_P(nmode) || !NIL_P(opt)) {
+	rb_io_extract_modeenc(&nmode, 0, opt, &oflags, &fmode, &convconfig);
 	if (IS_PREP_STDIO(fptr) &&
             ((fptr->mode & FMODE_READWRITE) & (fmode & FMODE_READWRITE)) !=
             (fptr->mode & FMODE_READWRITE)) {
@@ -6377,6 +6377,9 @@ rb_io_reopen(int argc, VALUE *argv, VALUE file)
 	}
 	fptr->mode = fmode;
         fptr->encs = convconfig;
+    }
+    else {
+	oflags = rb_io_fmode_oflags(fptr->mode);
     }
 
     fptr->pathv = rb_str_new_frozen(fname);
