@@ -6344,12 +6344,12 @@ io_reopen(VALUE io, VALUE nfile)
 static VALUE
 rb_io_reopen(int argc, VALUE *argv, VALUE file)
 {
-    VALUE fname, nmode;
+    VALUE fname, nmode, opt;
     int oflags;
     rb_io_t *fptr;
 
     rb_secure(4);
-    if (rb_scan_args(argc, argv, "11", &fname, &nmode) == 1) {
+    if (rb_scan_args(argc, argv, "11:", &fname, &nmode, &opt) == 1) {
 	VALUE tmp = rb_io_check_io(fname);
 	if (!NIL_P(tmp)) {
 	    return io_reopen(file, tmp);
