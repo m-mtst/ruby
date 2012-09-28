@@ -6365,16 +6365,10 @@ rb_io_reopen(int argc, VALUE *argv, VALUE file)
     }
 
     if (!NIL_P(nmode)) {
-	VALUE intmode = rb_check_to_int(nmode);
 	int fmode;
+	convconfig_t convconfig;
 
-	if (!NIL_P(intmode)) {
-	    oflags = NUM2INT(intmode);
-	    fmode = rb_io_oflags_fmode(oflags);
-	}
-	else {
-	    fmode = rb_io_modestr_fmode(StringValueCStr(nmode));
-	}
+	rb_io_extract_modeenc(&nmode, 0, opt, &oflags, &fmode, &convconfig);
 
 	if (IS_PREP_STDIO(fptr) &&
             ((fptr->mode & FMODE_READWRITE) & (fmode & FMODE_READWRITE)) !=
@@ -6385,15 +6379,10 @@ rb_io_reopen(int argc, VALUE *argv, VALUE file)
 		     rb_io_fmode_modestr(fmode));
 	}
 	fptr->mode = fmode;
-	if (NIL_P(intmode)) {
-	    rb_io_mode_enc(fptr, StringValueCStr(nmode));
-	}
-        fptr->encs.ecflags = 0;
-        fptr->encs.ecopts = Qnil;
+        fptr->encs = convconfig;
     }
 
     fptr->pathv = rb_str_new_frozen(fname);
-    oflags = rb_io_fmode_oflags(fptr->mode);
     if (fptr->fd < 0) {
         fptr->fd = rb_sysopen(fptr->pathv, oflags, 0666);
 	fptr->stdio_file = 0;
