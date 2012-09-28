@@ -6364,10 +6364,12 @@ rb_io_reopen(int argc, VALUE *argv, VALUE file)
 	MEMZERO(fptr, rb_io_t, 1);
     }
 
-    if (!NIL_P(nmode)) {
+    if (!NIL_P(nmode) || !NIL_P(opt)) {
 	int fmode;
 	convconfig_t convconfig;
 
+	rb_p(nmode);
+	rb_p(opt);
 	rb_io_extract_modeenc(&nmode, 0, opt, &oflags, &fmode, &convconfig);
 
 	if (IS_PREP_STDIO(fptr) &&
