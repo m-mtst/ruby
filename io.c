@@ -6347,7 +6347,6 @@ rb_io_reopen(int argc, VALUE *argv, VALUE file)
     VALUE fname, nmode, opt;
     int oflags;
     rb_io_t *fptr;
-    convconfig_t convconfig;
 
     rb_secure(4);
     if (rb_scan_args(argc, argv, "11:", &fname, &nmode, &opt) == 1) {
@@ -6367,6 +6366,7 @@ rb_io_reopen(int argc, VALUE *argv, VALUE file)
 
     if (!NIL_P(nmode) || !NIL_P(opt)) {
 	int fmode;
+	convconfig_t convconfig;
 
 	rb_io_extract_modeenc(&nmode, 0, opt, &oflags, &fmode, &convconfig);
 	if (IS_PREP_STDIO(fptr) &&
