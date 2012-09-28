@@ -4792,23 +4792,6 @@ parse_mode_enc(const char *estr, rb_encoding **enc_p, rb_encoding **enc2_p, int 
     rb_io_ext_int_to_encs(ext_enc, int_enc, enc_p, enc2_p);
 }
 
-static void
-mode_enc(rb_io_t *fptr, const char *estr)
-{
-    clear_codeconv(fptr);
-
-    parse_mode_enc(estr, &fptr->encs.enc, &fptr->encs.enc2, NULL);
-}
-
-static void
-rb_io_mode_enc(rb_io_t *fptr, const char *modestr)
-{
-    const char *p = strchr(modestr, ':');
-    if (p) {
-	mode_enc(fptr, p+1);
-    }
-}
-
 int
 rb_io_extract_encoding_option(VALUE opt, rb_encoding **enc_p, rb_encoding **enc2_p, int *fmode_p)
 {
