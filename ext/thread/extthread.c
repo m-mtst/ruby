@@ -345,11 +345,11 @@ struct waiting_delete {
 };
 
 static VALUE
-queue_delete_from_waiting(VALUE args)
+queue_delete_from_waiting(struct waiting_delete *p, VALUE e)
 {
-    struct waiting_delete *p = (struct waiting_delete *)args;
     rb_ary_delete(p->waiting, p->th);
-    return Qnil;
+    rb_exc_raise(e);
+    return Qundef;
 }
 
 static VALUE
