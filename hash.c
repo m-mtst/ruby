@@ -1189,11 +1189,15 @@ rb_hash_aset(VALUE hash, VALUE key, VALUE val)
 	if (iter_lev > 0) no_new_key();
 	tbl = RHASH_TBL(hash);
     }
-    if (tbl->type == &identhash || rb_obj_class(key) != rb_cString) {
+
+    if (tbl->type == &identhash) {
 	if (!SPECIAL_CONST_P(key) || tbl->num_entries > 256) {
 	    tbl->type = &objhash;
 	    rb_hash_rehash(hash);
 	}
+    }
+
+    if (tbl->type == &identhash || rb_obj_class(key) != rb_cString) {
 	RHASH_UPDATE_ITER(hash, iter_lev, key, hash_aset, val);
     }
     else {
