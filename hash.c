@@ -266,7 +266,8 @@ struct st_table *
 rb_hash_tbl(VALUE hash)
 {
     if (!RHASH(hash)->ntbl) {
-        RHASH(hash)->ntbl = st_init_table(&objhash);
+        /* RHASH(hash)->ntbl = st_init_table(&objhash); */
+        RHASH(hash)->ntbl = st_init_table(&identhash);
     }
     return RHASH(hash)->ntbl;
 }
@@ -1189,6 +1190,10 @@ rb_hash_aset(VALUE hash, VALUE key, VALUE val)
 	tbl = RHASH_TBL(hash);
     }
     if (tbl->type == &identhash || rb_obj_class(key) != rb_cString) {
+	if (!SPECIAL_CONST_P(key) || tbl->num_entries > 256) {
+	    tbl->type = &objhash;
+	    rb_hash_rehash(hash);
+	}
 	RHASH_UPDATE_ITER(hash, iter_lev, key, hash_aset, val);
     }
     else {
@@ -1890,8 +1895,15 @@ rb_hash_update_block_i(VALUE key, VALUE value, VALUE hash)
 static VALUE
 rb_hash_update(VALUE hash1, VALUE hash2)
 {
+    st_table *tbl = RHASH(hash1)->ntbl;
     rb_hash_modify(hash1);
     hash2 = to_hash(hash2);
+
+    if (tbl->type == &identhash) {
+	tbl->type = &objhash;
+	rb_hash_rehash(hash1);
+    }
+
     if (rb_block_given_p()) {
 	rb_hash_foreach(hash2, rb_hash_update_block_i, hash1);
     }
