@@ -31,6 +31,7 @@ static VALUE rb_hash_s_try_convert(VALUE, VALUE);
 
 #define HASH_DELETED  FL_USER1
 #define HASH_PROC_DEFAULT FL_USER2
+#define HASH_SPECIAL_MAX_SIZE 256
 
 VALUE
 rb_hash_freeze(VALUE hash)
@@ -104,6 +105,11 @@ rb_any_hash(VALUE a)
 static const struct st_hash_type objhash = {
     rb_any_cmp,
     rb_any_hash,
+};
+
+static const struct st_hash_type specialhash = {
+    st_numcmp,
+    st_numhash,
 };
 
 extern const struct st_hash_type st_hashtype_num;
@@ -266,8 +272,7 @@ struct st_table *
 rb_hash_tbl(VALUE hash)
 {
     if (!RHASH(hash)->ntbl) {
-        /* RHASH(hash)->ntbl = st_init_table(&objhash); */
-        RHASH(hash)->ntbl = st_init_table(&identhash);
+        RHASH(hash)->ntbl = st_init_table(&specialhash);
     }
     return RHASH(hash)->ntbl;
 }
@@ -1190,11 +1195,10 @@ rb_hash_aset(VALUE hash, VALUE key, VALUE val)
 	tbl = RHASH_TBL(hash);
     }
 
-    if (tbl->type == &identhash) {
-	if (!SPECIAL_CONST_P(key) || tbl->num_entries > 256) {
-	    tbl->type = &objhash;
-	    rb_hash_rehash(hash);
-	}
+    if (tbl->type == &specialhash &&
+	(!SPECIAL_CONST_P(key) || tbl->num_entries > HASH_SPECIAL_MAX_SIZE)) {
+	tbl->type = &objhash;
+	rb_hash_rehash(hash);
     }
 
     if (tbl->type == &identhash || rb_obj_class(key) != rb_cString) {
@@ -1906,7 +1910,7 @@ rb_hash_update(VALUE hash1, VALUE hash2)
 
     if (tbl1 &&
 	tbl2 &&
-	tbl1->type == &identhash &&
+	tbl1->type == &specialhash &&
 	tbl1->num_entries + tbl2->num_entries > HASH_SPECIAL_MAX_SIZE) {
 	tbl1->type = &objhash;
 	rb_hash_rehash(hash1);
