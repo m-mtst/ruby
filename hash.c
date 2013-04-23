@@ -1201,7 +1201,7 @@ rb_hash_aset(VALUE hash, VALUE key, VALUE val)
 	rb_hash_rehash(hash);
     }
 
-    if (tbl->type == &identhash || rb_obj_class(key) != rb_cString) {
+    if (tbl->type == &identhash || tbl->type == &specialhash || rb_obj_class(key) != rb_cString) {
 	RHASH_UPDATE_ITER(hash, iter_lev, key, hash_aset, val);
     }
     else {
