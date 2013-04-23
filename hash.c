@@ -1899,12 +1899,16 @@ rb_hash_update_block_i(VALUE key, VALUE value, VALUE hash)
 static VALUE
 rb_hash_update(VALUE hash1, VALUE hash2)
 {
-    st_table *tbl = RHASH(hash1)->ntbl;
+    st_table *tbl1 = RHASH(hash1)->ntbl;
+    st_table *tbl2 = RHASH(hash2)->ntbl;
     rb_hash_modify(hash1);
     hash2 = to_hash(hash2);
 
-    if (tbl->type == &identhash) {
-	tbl->type = &objhash;
+    if (tbl1 &&
+	tbl2 &&
+	tbl1->type == &identhash &&
+	tbl1->num_entries + tbl2->num_entries > HASH_SPECIAL_MAX_SIZE) {
+	tbl1->type = &objhash;
 	rb_hash_rehash(hash1);
     }
 
