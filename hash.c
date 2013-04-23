@@ -1908,12 +1908,12 @@ rb_hash_update(VALUE hash1, VALUE hash2)
     rb_hash_modify(hash1);
     hash2 = to_hash(hash2);
 
-    if (tbl1 &&
-	tbl2 &&
-	tbl1->type == &specialhash &&
-	tbl1->num_entries + tbl2->num_entries > HASH_SPECIAL_MAX_SIZE) {
-	tbl1->type = &objhash;
-	rb_hash_rehash(hash1);
+    if (tbl1 && tbl2 && tbl1->type == &specialhash) {
+	if (tbl2->type == &objhash ||
+	    tbl1->num_entries + tbl2->num_entries > HASH_SPECIAL_MAX_SIZE) {
+	    tbl1->type = &objhash;
+	    rb_hash_rehash(hash1);
+	}
     }
 
     if (rb_block_given_p()) {
