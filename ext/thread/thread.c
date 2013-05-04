@@ -677,7 +677,7 @@ rb_szqueue_num_waiting(VALUE self)
 #endif
 
 void
-Init_extthread(void)
+Init_thread(void)
 {
 #if UNDER_THREAD
 #define DEFINE_CLASS_UNDER_THREAD(name, super) rb_define_class_under(rb_cThread, #name, super)
