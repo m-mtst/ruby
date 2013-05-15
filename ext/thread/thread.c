@@ -150,7 +150,7 @@ static VALUE
 do_sleep(VALUE args)
 {
     struct sleep_call *p = (struct sleep_call *)args;
-    return rb_funcall(p->argv[0], rb_intern("sleep"), p->argc-1, p->argv+1);
+    return rb_funcall(p->argv[0], rb_intern("sleep"), p->argc-1, p->argv[1]);
 }
 
 static VALUE
