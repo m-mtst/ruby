@@ -361,7 +361,7 @@ queue_do_pop(Queue *queue, VALUE should_block)
 	    rb_raise(rb_eThreadError, "queue empty");
 	}
 	args.waiting = queue->waiting;
-	args.th = rb_thread_current();
+	args.th	     = rb_thread_current();
 	rb_ary_push(args.waiting, args.th);
 	rb_ensure((VALUE (*)())rb_thread_sleep_forever, (VALUE)0, queue_delete_from_waiting, (VALUE)&args);
     }
