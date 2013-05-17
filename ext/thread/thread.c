@@ -345,11 +345,10 @@ struct waiting_delete {
 };
 
 static VALUE
-queue_delete_from_waiting(struct waiting_delete *p, VALUE e)
+queue_delete_from_waiting(struct waiting_delete *p)
 {
     rb_ary_delete(p->waiting, p->th);
-    rb_exc_raise(e);
-    return Qundef;
+    return Qnil;
 }
 
 static VALUE
@@ -357,14 +356,14 @@ queue_do_pop(Queue *queue, VALUE should_block)
 {
     struct waiting_delete args;
 
-    while (!RARRAY_LEN(queue->que)) {
+    while (RARRAY_LEN(queue->que) == 0) {
 	if (!(int)should_block) {
 	    rb_raise(rb_eThreadError, "queue empty");
 	}
 	args.waiting = queue->waiting;
 	args.th = rb_thread_current();
 	rb_ary_push(args.waiting, args.th);
-	rb_rescue2((VALUE (*)())rb_thread_sleep_forever, (VALUE)0, queue_delete_from_waiting, (VALUE)&args, rb_eException, (VALUE)0);
+	rb_ensure((VALUE (*)())rb_thread_sleep_forever, (VALUE)0, queue_delete_from_waiting, (VALUE)&args);
     }
 
     return rb_ary_shift(queue->que);
@@ -607,9 +606,14 @@ rb_szqueue_max_set(VALUE self, VALUE vmax)
 static VALUE
 szqueue_do_push(SizedQueue *szqueue, VALUE obj)
 {
+    struct waiting_delete args;
+    VALUE thread;
+
     while (queue_length(&szqueue->queue_) >= szqueue->max) {
-	rb_ary_push(szqueue->queue_wait, rb_thread_current());
-	rb_thread_sleep_forever();
+	args.waiting = szqueue->queue_wait;
+	args.th      = rb_thread_current();
+	rb_ary_push(args.waiting, args.th);
+	rb_ensure((VALUE (*)())rb_thread_sleep_forever, (VALUE)0, queue_delete_from_waiting, (VALUE)&args);
     }
     return queue_do_push(&szqueue->queue_, obj);
 }
