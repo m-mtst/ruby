@@ -150,7 +150,7 @@ static VALUE
 do_sleep(VALUE args)
 {
     struct sleep_call *p = (struct sleep_call *)args;
-    return rb_mutex_sleep(p->mutex, p->timeout);
+    return rb_funcall2(p->mutex, rb_intern("sleep"), 1, &p->timeout);
 }
 
 static VALUE
@@ -182,6 +182,7 @@ rb_condvar_wait(int argc, VALUE *argv, VALUE self)
     args.timeout = timeout;
     rb_ary_push(waiters, rb_thread_current());
     rb_ensure(do_sleep, (VALUE)&args, delete_current_thread, waiters);
+
     return self;
 }
 
