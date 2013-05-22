@@ -146,11 +146,13 @@ struct sleep_call {
     VALUE timeout;
 };
 
+static ID id_sleep;
+
 static VALUE
 do_sleep(VALUE args)
 {
     struct sleep_call *p = (struct sleep_call *)args;
-    return rb_funcall2(p->mutex, rb_intern("sleep"), 1, &p->timeout);
+    return rb_funcall2(p->mutex, id_sleep, 1, &p->timeout);
 }
 
 static VALUE
@@ -702,6 +704,8 @@ Init_thread(void)
     VALUE rb_cConditionVariable = DEFINE_CLASS_UNDER_THREAD(ConditionVariable, rb_cObject);
     VALUE rb_cQueue = DEFINE_CLASS_UNDER_THREAD(Queue, rb_cObject);
     VALUE rb_cSizedQueue = DEFINE_CLASS_UNDER_THREAD(SizedQueue, rb_cQueue);
+
+    id_sleep = rb_intern("sleep");
 
     rb_define_alloc_func(rb_cConditionVariable, condvar_alloc);
     rb_define_method(rb_cConditionVariable, "initialize", rb_condvar_initialize, 0);
