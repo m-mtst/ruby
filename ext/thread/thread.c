@@ -613,7 +613,6 @@ static VALUE
 szqueue_do_push(SizedQueue *szqueue, VALUE obj)
 {
     struct waiting_delete args;
-    VALUE thread;
 
     while (queue_length(&szqueue->queue_) >= szqueue->max) {
 	args.waiting = szqueue->queue_wait;
