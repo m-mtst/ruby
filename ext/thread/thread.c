@@ -142,15 +142,15 @@ rb_condvar_initialize(VALUE self)
 }
 
 struct sleep_call {
-    int argc;
-    VALUE *argv;
+    VALUE mutex;
+    VALUE timeout;
 };
 
 static VALUE
 do_sleep(VALUE args)
 {
     struct sleep_call *p = (struct sleep_call *)args;
-    return rb_funcall(p->argv[0], rb_intern("sleep"), p->argc-1, p->argv[1]);
+    return rb_mutex_sleep(p->mutex, p->timeout);
 }
 
 static VALUE
@@ -173,10 +173,13 @@ static VALUE
 rb_condvar_wait(int argc, VALUE *argv, VALUE self)
 {
     VALUE waiters = get_condvar_ptr(self)->waiters;
+    VALUE mutex, timeout;
     struct sleep_call args;
 
-    args.argc = argc;
-    args.argv = argv;
+    rb_scan_args(argc, argv, "11", &mutex, &timeout);
+
+    args.mutex   = mutex;
+    args.timeout = timeout;
     rb_ary_push(waiters, rb_thread_current());
     rb_ensure(do_sleep, (VALUE)&args, delete_current_thread, waiters);
     return self;
