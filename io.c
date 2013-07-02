@@ -2748,39 +2748,49 @@ rscheck(const char *rsptr, long rslen, VALUE rs)
 	rb_raise(rb_eRuntimeError, "rs modified");
 }
 
-static int
-appendline(rb_io_t *fptr, int delim, VALUE *strp, long *lp)
+static VALUE
+appendline(rb_io_t *fptr, const char *rsptr, long rslen, VALUE str, long *lp, rb_encoding *enc)
 {
-    VALUE str = *strp;
     long limit = *lp;
+    const char *p, *e, *ee;
+    int searchlen;
 
     if (NEED_READCONV(fptr)) {
 	SET_BINARY_MODE(fptr);
         make_readconv(fptr, 0);
         do {
-            const char *p, *e;
-            int searchlen;
             if (fptr->cbuf.len) {
                 p = fptr->cbuf.ptr+fptr->cbuf.off;
                 searchlen = fptr->cbuf.len;
                 if (0 < limit && limit < searchlen)
                     searchlen = (int)limit;
-                e = memchr(p, delim, searchlen);
+                
+		while(1) {
+		    const char *search_start = p;
+		    e = rb_memsearch(p, searchlen, rsptr, rslen);
+		    if (!e) break;
+		    ee = rb_enc_left_char_head(p, e, p+searchlen, enc);
+		    if (e == ee)
+			break;
+		    else
+			search_start = ee + rb_enc_mbclen(p, p+searchlen, enc);
+		}
+
                 if (e) {
 		    int len = (int)(e-p+1);
                     if (NIL_P(str))
-                        *strp = str = rb_str_new(p, len);
+                        str = rb_str_new(p, len);
                     else
                         rb_str_buf_cat(str, p, len);
                     fptr->cbuf.off += len;
                     fptr->cbuf.len -= len;
                     limit -= len;
                     *lp = limit;
-                    return delim;
+                    return str;
                 }
 
                 if (NIL_P(str))
-                    *strp = str = rb_str_new(p, searchlen);
+                    str = rb_str_new(p, searchlen);
                 else
                     rb_str_buf_cat(str, p, searchlen);
                 fptr->cbuf.off += searchlen;
@@ -2789,25 +2799,34 @@ appendline(rb_io_t *fptr, int delim, VALUE *strp, long *lp)
 
                 if (limit == 0) {
                     *lp = limit;
-                    return (unsigned char)RSTRING_PTR(str)[RSTRING_LEN(str)-1];
+                    return str;
                 }
             }
         } while (more_char(fptr) != MORE_CHAR_FINISHED);
         clear_readconv(fptr);
         *lp = limit;
-        return EOF;
+        return Qnil;
     }
 
     NEED_NEWLINE_DECORATOR_ON_READ_CHECK(fptr);
     do {
 	long pending = READ_DATA_PENDING_COUNT(fptr);
 	if (pending > 0) {
-	    const char *p = READ_DATA_PENDING_PTR(fptr);
-	    const char *e;
 	    long last;
+	    
+	    p = READ_DATA_PENDING_PTR(fptr);
 
 	    if (limit > 0 && pending > limit) pending = limit;
-	    e = memchr(p, delim, pending);
+	    while(1) {
+		const char *search_start = p;
+		e = rb_memsearch(p, pending, rsptr, rslen);
+		if (!e) break;
+		ee = rb_enc_left_char_head(p, e, p+searchlen, enc);
+		if (e == ee)
+		    break;
+		else
+		    search_start = ee + rb_enc_mbclen(p, p+searchlen, enc);
+	    }
 	    if (e) pending = e - p + 1;
 	    if (!NIL_P(str)) {
 		last = RSTRING_LEN(str);
@@ -2815,20 +2834,20 @@ appendline(rb_io_t *fptr, int delim, VALUE *strp, long *lp)
 	    }
 	    else {
                 last = 0;
-		*strp = str = rb_str_buf_new(pending);
+		str = rb_str_buf_new(pending);
 		rb_str_set_len(str, pending);
 	    }
 	    read_buffered_data(RSTRING_PTR(str) + last, pending, fptr); /* must not fail */
 	    limit -= pending;
 	    *lp = limit;
-	    if (e) return delim;
+	    if (e) return str;
 	    if (limit == 0)
-		return (unsigned char)RSTRING_PTR(str)[RSTRING_LEN(str)-1];
+		return str;
 	}
 	READ_CHECK(fptr);
     } while (io_fillbuf(fptr) >= 0);
     *lp = limit;
-    return EOF;
+    return Qnil;
 }
 
 static inline int
@@ -3031,19 +3050,9 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
 	}
 
 	/* MS - Optimisation */
-	while ((c = appendline(fptr, newline, &str, &limit)) != EOF) {
+	while (!NIL_P(str = appendline(fptr, rsptr, rslen, str, &limit, enc))) {
             const char *s, *p, *pp, *e;
 
-	    if (c == newline) {
-		if (RSTRING_LEN(str) < rslen) continue;
-		s = RSTRING_PTR(str);
-                e = s + RSTRING_LEN(str);
-		p = e - rslen;
-		pp = rb_enc_left_char_head(s, p, e, enc);
-		if (pp != p) continue;
-		if (!rspara) rscheck(rsptr, rslen, rs);
-		if (memcmp(p, rsptr, rslen) == 0) break;
-	    }
 	    if (limit == 0) {
 		s = RSTRING_PTR(str);
 		p = s + RSTRING_LEN(str);
@@ -3062,11 +3071,8 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
 	    }
 	}
 
-	if (rspara) {
-	    if (c != EOF) {
-		swallow(fptr, '\n');
-	    }
-	}
+	if (rspara && c != EOF)
+	    swallow(fptr, '\n');
 	if (!NIL_P(str))
             str = io_enc_str(str, fptr);
     }
