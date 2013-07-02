@@ -2772,7 +2772,23 @@ rssearch(const char *ptr, long len, const char *rsptr, long rslen, rb_encoding *
     return NULL;
 }
 
-static void
+static int
+relax_limit(VALUE str, rb_encoding *enc, long *limit, int *extra_limit) {
+    const char *ptr = RSTRING_PTR(str);
+    const char *pend = RSTRING_END(str);
+    const char *pp = rb_enc_left_char_head(ptr, pend-1, pend, enc);
+
+    if (extra_limit &&
+	MBCLEN_NEEDMORE_P((rb_enc_precise_mbclen(pp, pend, enc)))) {
+	/* relax the limit while incomplete character.
+	 * extra_limit limits the relax length */
+	(*limit)++;
+	(*extra_limit)--;
+	return 1;
+    }
+    
+    return 0;
+}
 
 static VALUE
 appendline(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *enc)
@@ -2815,21 +2831,9 @@ appendline(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *
                 fptr->cbuf.len -= searchlen;
                 limit -= searchlen;
 
-                if (limit == 0) {
-		    const char *ptr = RSTRING_PTR(str);
-		    const char *pend = RSTRING_END(str);
-		    const char *pp = rb_enc_left_char_head(ptr, pend-1, pend, enc);
-		    if (extra_limit &&
-			MBCLEN_NEEDMORE_P((rb_enc_precise_mbclen(pp, pend, enc)))) {
-			/* relax the limit while incomplete character.
-			 * extra_limit limits the relax length */
-			limit++;
-			extra_limit--;
-		    }
-		    else {
-			*lp = limit;
-			return str;
-		    }
+		if (limit == 0 && !relax_limit(str, enc, &limit, &extra_limit)) {
+		    *lp = limit;
+		    return str;
                 }
             }
         } while (more_char(fptr) != MORE_CHAR_FINISHED);
@@ -2862,20 +2866,9 @@ appendline(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *
 	    limit -= pending;
 	    *lp = limit;
 	    if (hit) return str;
-	    if (limit == 0) {
-		const char *ptr = RSTRING_PTR(str);
-		const char *pend = RSTRING_END(str);
-		const char *pp = rb_enc_left_char_head(ptr, pend-1, pend, enc);
-		if (extra_limit &&
-		    MBCLEN_NEEDMORE_P(rb_enc_precise_mbclen(pp, pend, enc))) {
-		    /* relax the limit while incomplete character.
-		     * extra_limit limits the relax length */
-		    limit++;
-		    extra_limit--;
-		}
-		else {
-		    return str;
-		}
+	    if (limit == 0 && !relax_limit(str, enc, &limit, &extra_limit)) {
+		*lp = limit;
+		return str;
 	    }
 	}
 	READ_CHECK(fptr);
