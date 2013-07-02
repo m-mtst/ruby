@@ -2791,56 +2791,63 @@ relax_limit(VALUE str, rb_encoding *enc, long *limit, int *extra_limit) {
 }
 
 static VALUE
-appendline(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *enc)
+appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *enc)
 {
     VALUE str = Qnil;
     long pos, limit = *lp;
     const char *p, *hit;
     int searchlen, extra_limit = 16;
 
-    if (NEED_READCONV(fptr)) {
-	SET_BINARY_MODE(fptr);
-        make_readconv(fptr, 0);
-        do {
-            if (fptr->cbuf.len) {
-                p = fptr->cbuf.ptr+fptr->cbuf.off;
-                searchlen = fptr->cbuf.len;
-                if (0 < limit && limit < searchlen)
-                    searchlen = (int)limit;
-                
-		hit = rssearch(p, searchlen, rsptr, rslen, enc);
+    SET_BINARY_MODE(fptr);
+    make_readconv(fptr, 0);
+    do {
+        if (fptr->cbuf.len) {
+            p = fptr->cbuf.ptr+fptr->cbuf.off;
+            searchlen = fptr->cbuf.len;
+            if (0 < limit && limit < searchlen)
+                searchlen = (int)limit;
+            
+    	hit = rssearch(p, searchlen, rsptr, rslen, enc);
 
-                if (hit) {
-		    int len = (int)(hit-p+1);
-                    if (NIL_P(str))
-                        str = rb_str_new(p, len);
-                    else
-                        rb_str_buf_cat(str, p, len);
-                    fptr->cbuf.off += len;
-                    fptr->cbuf.len -= len;
-                    limit -= len;
-                    *lp = limit;
-                    return str;
-                }
-
+            if (hit) {
+    	    int len = (int)(hit-p+1);
                 if (NIL_P(str))
-                    str = rb_str_new(p, searchlen);
+                    str = rb_str_new(p, len);
                 else
-                    rb_str_buf_cat(str, p, searchlen);
-                fptr->cbuf.off += searchlen;
-                fptr->cbuf.len -= searchlen;
-                limit -= searchlen;
-
-		if (limit == 0 && !relax_limit(str, enc, &limit, &extra_limit)) {
-		    *lp = limit;
-		    return str;
-                }
+                    rb_str_buf_cat(str, p, len);
+                fptr->cbuf.off += len;
+                fptr->cbuf.len -= len;
+                limit -= len;
+                *lp = limit;
+                return str;
             }
-        } while (more_char(fptr) != MORE_CHAR_FINISHED);
-        clear_readconv(fptr);
-        *lp = limit;
-        return Qnil;
-    }
+
+            if (NIL_P(str))
+                str = rb_str_new(p, searchlen);
+            else
+                rb_str_buf_cat(str, p, searchlen);
+            fptr->cbuf.off += searchlen;
+            fptr->cbuf.len -= searchlen;
+            limit -= searchlen;
+
+    	if (limit == 0 && !relax_limit(str, enc, &limit, &extra_limit)) {
+    	    *lp = limit;
+    	    return str;
+            }
+        }
+    } while (more_char(fptr) != MORE_CHAR_FINISHED);
+    clear_readconv(fptr);
+    *lp = limit;
+    return Qnil;
+}
+
+static VALUE
+appendline(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *enc)
+{
+    VALUE str = Qnil;
+    long pos, limit = *lp;
+    const char *p, *hit;
+    int searchlen, extra_limit = 16;
 
     NEED_NEWLINE_DECORATOR_ON_READ_CHECK(fptr);
     do {
@@ -3076,7 +3083,10 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
 	    }
 	}
 
-	str = appendline(fptr, rsptr, rslen, &limit, enc);
+	if (NEED_READCONV(fptr))
+	    str = appendline_readconv(fptr, rsptr, rslen, &limit, enc);
+	else
+	    str = appendline(fptr, rsptr, rslen, &limit, enc);
 
 	if (rspara && NIL_P(str))
 	    swallow(fptr, '\n');
