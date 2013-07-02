@@ -2755,17 +2755,17 @@ rssearch(const char *ptr, long len, const char *rsptr, long rslen, rb_encoding *
     const char *hit, *adjusted, *pend = ptr + len;
 
     while(search_start < pend) {
-	hit_pos = rb_memsearch(search_start, len, rsptr, rslen, enc);
+	hit_pos = rb_memsearch(rsptr, rslen, search_start, len, enc);
 	if (hit_pos == -1) break;
 	hit = search_start + hit_pos;
 	adjusted = rb_enc_left_char_head(search_start, hit, pend, enc);
 
 	if (hit == adjusted) {
-	    return hit;
+	    return hit + rslen - 1;
 	}
 	else {
-	    search_start = hit + 1;
-	    len -= hit_pos + 1;
+	    search_start = hit + rslen;
+	    len -= hit_pos + rslen;
 	}
     }
     
@@ -2794,7 +2794,7 @@ static VALUE
 appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *enc)
 {
     VALUE str = Qnil;
-    long pos, limit = *lp;
+    long limit = *lp;
     const char *p, *hit;
     int searchlen, extra_limit = 16;
 
@@ -2807,10 +2807,10 @@ appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_e
             if (0 < limit && limit < searchlen)
                 searchlen = (int)limit;
             
-    	hit = rssearch(p, searchlen, rsptr, rslen, enc);
+	    hit = rssearch(p, searchlen, rsptr, rslen, enc);
 
             if (hit) {
-    	    int len = (int)(hit-p+1);
+		int len = (int)(hit-p+1);
                 if (NIL_P(str))
                     str = rb_str_new(p, len);
                 else
@@ -2838,16 +2838,16 @@ appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_e
     } while (more_char(fptr) != MORE_CHAR_FINISHED);
     clear_readconv(fptr);
     *lp = limit;
-    return Qnil;
+    return str;
 }
 
 static VALUE
 appendline(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *enc)
 {
     VALUE str = Qnil;
-    long pos, limit = *lp;
+    long limit = *lp;
     const char *p, *hit;
-    int searchlen, extra_limit = 16;
+    int extra_limit = 16;
 
     NEED_NEWLINE_DECORATOR_ON_READ_CHECK(fptr);
     do {
@@ -2881,7 +2881,7 @@ appendline(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *
 	READ_CHECK(fptr);
     } while (io_fillbuf(fptr) >= 0);
     *lp = limit;
-    return Qnil;
+    return str;
 }
 
 static inline int
