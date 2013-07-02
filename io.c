@@ -3041,7 +3041,7 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
     rb_io_check_char_readable(fptr);
     if (NIL_P(rs)) {
 	if (limit < 0) limit = 0;
-	str = read_all(fptr, 0, Qnil);
+	str = read_all(fptr, limit, Qnil);
 	if (RSTRING_LEN(str) == 0) return Qnil;
     }
     else if (limit == 0) {
