@@ -2749,8 +2749,9 @@ rscheck(const char *rsptr, long rslen, VALUE rs)
 }
 
 static VALUE
-appendline(rb_io_t *fptr, const char *rsptr, long rslen, VALUE str, long *lp, rb_encoding *enc)
+appendline(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *enc)
 {
+    VALUE str = Qnil;
     long pos, limit = *lp;
     const char *p, *e, *ee;
     int searchlen, extra_limit = 16;
@@ -3074,10 +3075,9 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
 	    else {
 		rsptr = RSTRING_PTR(rs);
 	    }
-	    newline = (unsigned char)rsptr[rslen - 1];
 	}
 
-	str = appendline(fptr, rsptr, rslen, str, &limit, enc);
+	str = appendline(fptr, rsptr, rslen, &limit, enc);
 
 	if (rspara && NIL_P(str))
 	    swallow(fptr, '\n');
@@ -3085,16 +3085,14 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
             str = io_enc_str(str, fptr);
     }
 
-    if (!NIL_P(str)) {
-	if (!nolimit) {
-	    fptr->lineno++;
-	    if (io == ARGF.current_file) {
-		ARGF.lineno++;
-		ARGF.last_lineno = ARGF.lineno;
-	    }
-	    else {
-		ARGF.last_lineno = fptr->lineno;
-	    }
+    if (!NIL_P(str) && limit != 0) {
+	fptr->lineno++;
+	if (io == ARGF.current_file) {
+	    ARGF.lineno++;
+	    ARGF.last_lineno = ARGF.lineno;
+	}
+	else {
+	    ARGF.last_lineno = fptr->lineno;
 	}
     }
 
