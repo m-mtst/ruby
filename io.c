@@ -2754,18 +2754,20 @@ rssearch(const char *ptr, long len, const char *rsptr, long rslen, rb_encoding *
     const char *search_start = ptr;
     const char *hit, *adjusted, *pend = ptr + len;
 
-    while(search_start < pend) {
-	hit_pos = rb_memsearch(rsptr, rslen, search_start, len, enc);
-	if (hit_pos == -1) break;
-	hit = search_start + hit_pos;
-	adjusted = rb_enc_left_char_head(search_start, hit, pend, enc);
+    if (rslen) {
+	while(search_start < pend) {
+	    hit_pos = rb_memsearch(rsptr, rslen, search_start, len, enc);
+	    if (hit_pos == -1) break;
+	    hit = search_start + hit_pos;
+	    adjusted = rb_enc_left_char_head(search_start, hit, pend, enc);
 
-	if (hit == adjusted) {
-	    return hit + rslen - 1;
-	}
-	else {
-	    search_start = hit + rslen;
-	    len -= hit_pos + rslen;
+	    if (hit == adjusted) {
+		return rslen == 0 ? hit + rslen - 1 : hit;
+	    }
+	    else {
+		search_start = hit + rslen;
+		len -= hit_pos + rslen;
+	    }
 	}
     }
     
