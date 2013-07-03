@@ -2830,9 +2830,9 @@ appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_e
             fptr->cbuf.len -= searchlen;
             limit -= searchlen;
 
-    	if (limit == 0 && !relax_limit(str, enc, &limit, &extra_limit)) {
-    	    *lp = limit;
-    	    return str;
+	    if (limit == 0 && !relax_limit(str, enc, &limit, &extra_limit)) {
+		*lp = limit;
+		return str;
             }
         }
     } while (more_char(fptr) != MORE_CHAR_FINISHED);
