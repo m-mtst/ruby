@@ -2861,7 +2861,7 @@ appendline(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *
 
 	    if (limit > 0 && pending > limit) pending = limit;
 	    hit = rssearch(p, pending, rsptr, rslen, enc);
-	    if (hit) pending = hit - p + 1;
+	    if (hit) pending = hit - p + rslen;
 	    if (!NIL_P(str)) {
 		last = RSTRING_LEN(str);
 		rb_str_resize(str, last + pending);
