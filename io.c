@@ -3081,13 +3081,12 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
 	    }
 	}
 
-	if (rspara) printf("rspara\n");
 	if (NEED_READCONV(fptr))
 	    str = appendline_readconv(fptr, rsptr, rslen, &limit, enc);
 	else
 	    str = appendline(fptr, rsptr, rslen, &limit, enc);
 
-	if (rspara && NIL_P(str)) swallow(fptr, '\n');
+	if (rspara && !NIL_P(str)) swallow(fptr, '\n');
 	if (!NIL_P(str)) str = io_enc_str(str, fptr);
     }
 
