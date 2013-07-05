@@ -2821,7 +2821,6 @@ appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_e
                 fptr->cbuf.off += len;
                 fptr->cbuf.len -= len;
                 limit -= len;
-                *lp = limit;
 		printf("return\n");
 		rb_p(str);
                 return str;
@@ -2835,10 +2834,8 @@ appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_e
             fptr->cbuf.len -= searchlen;
             limit -= searchlen;
 
-	    if (limit == 0 && !relax_limit(str, enc, &limit, &extra_limit)) {
-		*lp = limit;
+	    if (limit == 0 && !relax_limit(str, enc, &limit, &extra_limit))
 		return str;
-            }
         }
     } while (more_char(fptr) != MORE_CHAR_FINISHED);
     clear_readconv(fptr);
