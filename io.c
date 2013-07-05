@@ -2800,39 +2800,37 @@ appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_e
     const char *p, *hit;
     int searchlen, extra_limit = 16;
 
-    printf("%s %ld %ld\n", rsptr, rslen, strlen(rsptr));
     SET_BINARY_MODE(fptr);
     make_readconv(fptr, 0);
     do {
-        if (fptr->cbuf.len) {
+        if (fptr->cbuf.len >= rslen) {
             p = fptr->cbuf.ptr+fptr->cbuf.off;
             searchlen = fptr->cbuf.len;
             if (0 < limit && limit < searchlen)
                 searchlen = (int)limit;
 
 	    hit = rssearch(p, searchlen, rsptr, rslen, enc);
-	    /* printf("%p %d\n", hit, fptr->cbuf.len); */
 
             if (hit) {
 		int len = (int)(hit-p+rslen);
-                if (NIL_P(str))
-                    str = rb_str_new(p, len);
-                else
-                    rb_str_buf_cat(str, p, len);
-		printf("foo\n");
+		if (NIL_P(str))
+		    str = rb_enc_str_new(p, len, enc);
+		else
+		    rb_str_buf_cat(str, p, len);
+		printf("%d %ld\n", len, RSTRING_LEN(str));
                 fptr->cbuf.off += len;
                 fptr->cbuf.len -= len;
                 limit -= len;
                 *lp = limit;
+		printf("return\n");
+		rb_p(str);
                 return str;
             }
 
             if (NIL_P(str))
                 str = rb_enc_str_new(p, searchlen, enc);
             else
-                rb_str_buf_cat(str, p, searchlen);
-	    /* rb_p(rb_enc_str_new(rsptr, rslen, enc)); */
-	    rb_p(str);
+		rb_str_buf_cat(str, p, searchlen);
             fptr->cbuf.off += searchlen;
             fptr->cbuf.len -= searchlen;
             limit -= searchlen;
