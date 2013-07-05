@@ -2817,12 +2817,9 @@ appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_e
 		    str = rb_enc_str_new(p, len, enc);
 		else
 		    rb_str_buf_cat(str, p, len);
-		printf("%d %ld\n", len, RSTRING_LEN(str));
                 fptr->cbuf.off += len;
                 fptr->cbuf.len -= len;
                 limit -= len;
-		printf("return\n");
-		rb_p(str);
                 return str;
             }
 
@@ -3084,15 +3081,14 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
 	    }
 	}
 
+	if (rspara) printf("rspara\n");
 	if (NEED_READCONV(fptr))
 	    str = appendline_readconv(fptr, rsptr, rslen, &limit, enc);
 	else
 	    str = appendline(fptr, rsptr, rslen, &limit, enc);
 
-	if (rspara && NIL_P(str))
-	    swallow(fptr, '\n');
-	if (!NIL_P(str))
-            str = io_enc_str(str, fptr);
+	if (rspara && NIL_P(str)) swallow(fptr, '\n');
+	if (!NIL_P(str)) str = io_enc_str(str, fptr);
     }
 
     if (!NIL_P(str) && limit != 0) {
