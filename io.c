@@ -2931,57 +2931,6 @@ swallow(rb_io_t *fptr, int term)
     return FALSE;
 }
 
-static VALUE
-rb_io_getline_fast(rb_io_t *fptr, rb_encoding *enc, VALUE io)
-{
-    VALUE str = Qnil;
-    int len = 0;
-    long pos = 0;
-    int cr = 0;
-
-    do {
-	int pending = READ_DATA_PENDING_COUNT(fptr);
-
-	if (pending > 0) {
-	    const char *p = READ_DATA_PENDING_PTR(fptr);
-	    const char *e;
-
-	    e = memchr(p, '\n', pending);
-	    if (e) {
-                pending = (int)(e - p + 1);
-	    }
-	    if (NIL_P(str)) {
-		str = rb_str_new(p, pending);
-		fptr->rbuf.off += pending;
-		fptr->rbuf.len -= pending;
-	    }
-	    else {
-		rb_str_resize(str, len + pending);
-		read_buffered_data(RSTRING_PTR(str)+len, pending, fptr);
-	    }
-	    len += pending;
-	    if (cr != ENC_CODERANGE_BROKEN)
-		pos += rb_str_coderange_scan_restartable(RSTRING_PTR(str) + pos, RSTRING_PTR(str) + len, enc, &cr);
-	    if (e) break;
-	}
-	READ_CHECK(fptr);
-    } while (io_fillbuf(fptr) >= 0);
-    if (NIL_P(str)) return Qnil;
-
-    str = io_enc_str(str, fptr);
-    ENC_CODERANGE_SET(str, cr);
-    fptr->lineno++;
-    if (io == ARGF.current_file) {
-	ARGF.lineno++;
-	ARGF.last_lineno = ARGF.lineno;
-    }
-    else {
-	ARGF.last_lineno = fptr->lineno;
-    }
-
-    return str;
-}
-
 static void
 prepare_getline_args(int argc, VALUE *argv, VALUE *rsp, long *limit, VALUE io)
 {
@@ -3043,11 +2992,6 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
     }
     else if (limit == 0) {
 	return rb_enc_str_new(0, 0, io_read_encoding(fptr));
-    }
-    else if (rs == rb_default_rs && limit < 0 && !NEED_READCONV(fptr) &&
-             rb_enc_asciicompat(enc = io_read_encoding(fptr))) {
-	NEED_NEWLINE_DECORATOR_ON_READ_CHECK(fptr);
-	return rb_io_getline_fast(fptr, enc, io);
     }
     else {
 	int newline = -1;
