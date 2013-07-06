@@ -2798,38 +2798,37 @@ appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_e
     VALUE str = Qnil;
     long limit = *lp;
     const char *p, *hit;
-    int searchlen, extra_limit = 16;
+    int appendlen, searchlen, extra_limit = 16;
 
     SET_BINARY_MODE(fptr);
     make_readconv(fptr, 0);
     do {
-        if (fptr->cbuf.len >= rslen) {
+        if (fptr->cbuf.len) {
             p = fptr->cbuf.ptr+fptr->cbuf.off;
-            searchlen = fptr->cbuf.len;
-            if (0 < limit && limit < searchlen)
-                searchlen = (int)limit;
+            appendlen = fptr->cbuf.len;
+            if (0 < limit && limit < appendlen) appendlen = (int)limit;
 
+            if (NIL_P(str))
+                str = rb_enc_str_new(p, appendlen, enc);
+            else
+		rb_str_buf_cat(str, p, appendlen);
+
+	    p = RSTRING_PTR(str);
+	    searchlen = RSTRING_LEN(str);
 	    hit = rssearch(p, searchlen, rsptr, rslen, enc);
 
             if (hit) {
 		int len = (int)(hit-p+rslen);
-		if (NIL_P(str))
-		    str = rb_enc_str_new(p, len, enc);
-		else
-		    rb_str_buf_cat(str, p, len);
-                fptr->cbuf.off += len;
-                fptr->cbuf.len -= len;
-                limit -= len;
+		str = rb_str_substr(str, 0, len);
+                fptr->cbuf.off += appendlen - (searchlen - len);
+                fptr->cbuf.len -= appendlen - (searchlen - len);
+                limit -= appendlen - (searchlen - len);
                 return str;
             }
 
-            if (NIL_P(str))
-                str = rb_enc_str_new(p, searchlen, enc);
-            else
-		rb_str_buf_cat(str, p, searchlen);
-            fptr->cbuf.off += searchlen;
-            fptr->cbuf.len -= searchlen;
-            limit -= searchlen;
+            fptr->cbuf.off += appendlen;
+            fptr->cbuf.len -= appendlen;
+            limit -= appendlen;
 
 	    if (limit == 0 && !relax_limit(str, enc, &limit, &extra_limit))
 		return str;
