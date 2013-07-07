@@ -2876,7 +2876,6 @@ appendline(rb_io_t *fptr, const char *rsptr, long rslen, long limit, rb_encoding
 	    if (hit) {
 		int len = hit - p + 1;
 		int off_in_rbuf = pending - (RSTRING_LEN(str) - len);
-		/* printf("%s %d %ld %d\n", rsptr, len, rslen, off_in_rbuf); */
 		rb_str_resize(str, len);
                 fptr->rbuf.off += off_in_rbuf;
                 fptr->rbuf.len -= off_in_rbuf;
