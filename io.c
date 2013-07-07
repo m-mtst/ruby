@@ -2819,10 +2819,11 @@ appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_e
 
             if (hit) {
 		int len = (int)(hit-p+rslen);
+		int off_in_cbuf = appendlen - (searchlen - len);
 		str = rb_str_substr(str, 0, len);
-                fptr->cbuf.off += appendlen - (searchlen - len);
-                fptr->cbuf.len -= appendlen - (searchlen - len);
-                limit -= appendlen - (searchlen - len);
+                fptr->cbuf.off += off_in_cbuf;
+                fptr->cbuf.len -= off_in_cbuf;
+                limit -= off_in_cbuf;
                 return str;
             }
 
