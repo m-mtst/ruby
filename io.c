@@ -2890,6 +2890,7 @@ appendline(rb_io_t *fptr, const char *rsptr, long rslen, long limit, rb_encoding
 	}
 	READ_CHECK(fptr);
     } while (io_fillbuf(fptr) >= 0);
+
     return str;
 }
 
