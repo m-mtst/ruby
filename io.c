@@ -2858,7 +2858,6 @@ appendline(rb_io_t *fptr, const char *rsptr, long rslen, long limit, rb_encoding
 		last = 0;
 		str = rb_str_buf_new(pending);
 		rb_str_set_len(str, pending);
-
 	    }
 	    else {
 		last = RSTRING_LEN(str);
@@ -2868,7 +2867,7 @@ appendline(rb_io_t *fptr, const char *rsptr, long rslen, long limit, rb_encoding
 	    p = RSTRING_PTR(str);
 	    searchlen = RSTRING_LEN(str);
 
-	    MEMMOVE(p + last, fptr->rbuf.ptr+fptr->rbuf.off, char, pending);
+	    MEMCPY(p + last, fptr->rbuf.ptr+fptr->rbuf.off, char, pending);
 
 	    hit = rssearch(p, searchlen, rsptr, rslen, enc);
 	    if (hit) {
