@@ -2845,8 +2845,9 @@ appendline(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *
 {
     VALUE str = Qnil;
     long limit = *lp;
-    const char *p, *hit;
-    int extra_limit = 16;
+    char *p;
+    const char *hit;
+    int searchlen, extra_limit = 16;
 
     NEED_NEWLINE_DECORATOR_ON_READ_CHECK(fptr);
     do {
@@ -2857,25 +2858,40 @@ appendline(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *
 	    p = READ_DATA_PENDING_PTR(fptr);
 
 	    if (limit > 0 && pending > limit) pending = limit;
-	    hit = rssearch(p, pending, rsptr, rslen, enc);
-	    if (hit) pending = hit - p + rslen;
-	    if (!NIL_P(str)) {
+
+	    if (NIL_P(str)) {
+		last = 0;
+		str = rb_str_buf_new(pending);
+		rb_str_set_len(str, pending);
+
+	    }
+	    else {
 		last = RSTRING_LEN(str);
 		rb_str_resize(str, last + pending);
 	    }
-	    else {
-                last = 0;
-		str = rb_str_buf_new(pending);
-		rb_str_set_len(str, pending);
-	    }
-	    read_buffered_data(RSTRING_PTR(str) + last, pending, fptr); /* must not fail */
-	    limit -= pending;
-	    *lp = limit;
-	    if (hit) return str;
-	    if (limit == 0 && !relax_limit(str, enc, &limit, &extra_limit)) {
-		*lp = limit;
+
+	    p = RSTRING_PTR(str);
+	    searchlen = RSTRING_LEN(str);
+
+	    MEMMOVE(p + last, fptr->rbuf.ptr+fptr->rbuf.off, char, pending);
+
+	    hit = rssearch(p, searchlen, rsptr, rslen, enc);
+	    if (hit) {
+		int len = hit - p + rslen;
+		int off_in_rbuf = pending - (searchlen - len);
+		str = rb_str_substr(str, 0, len);
+                fptr->rbuf.off += off_in_rbuf;
+                fptr->rbuf.len -= off_in_rbuf;
+		limit -= off_in_rbuf;
 		return str;
 	    }
+
+            fptr->rbuf.off += pending;
+            fptr->rbuf.len -= pending;
+	    limit -= pending;
+
+	    if (limit == 0 && !relax_limit(str, enc, &limit, &extra_limit))
+		return str;
 	}
 	READ_CHECK(fptr);
     } while (io_fillbuf(fptr) >= 0);
