@@ -3038,6 +3038,7 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
 	else
 	    str = appendline(fptr, rsptr, rslen, limit, enc);
 
+	if (!rspara) rscheck(rsptr, rslen, rs);
 	if (rspara && !NIL_P(str)) swallow(fptr, '\n');
     }
 
