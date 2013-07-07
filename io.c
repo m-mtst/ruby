@@ -2770,7 +2770,7 @@ rssearch(const char *ptr, long len, const char *rsptr, long rslen, rb_encoding *
 	    }
 	}
     }
-    
+
     return NULL;
 }
 
@@ -2788,7 +2788,7 @@ relax_limit(VALUE str, rb_encoding *enc, long *limit, int *extra_limit) {
 	(*extra_limit)--;
 	return 1;
     }
-    
+
     return 0;
 }
 
