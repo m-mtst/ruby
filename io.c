@@ -2817,7 +2817,7 @@ appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long limit, rb
 	    hit = rssearch(p, searchlen, rsptr, rslen, enc);
 
             if (hit) {
-		int len = (int)(hit-p+rslen);
+		int len = hit - p + rslen;
 		int off_in_cbuf = appendlen - (searchlen - len);
 		rb_str_resize(str, len);
                 fptr->cbuf.off += off_in_cbuf;
