@@ -2793,10 +2793,9 @@ relax_limit(VALUE str, rb_encoding *enc, long *limit, int *extra_limit) {
 }
 
 static VALUE
-appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *enc)
+appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long limit, rb_encoding *enc)
 {
     VALUE str = Qnil;
-    long limit = *lp;
     const char *p, *hit;
     int appendlen, searchlen, extra_limit = 16;
 
@@ -2836,15 +2835,13 @@ appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_e
         }
     } while (more_char(fptr) != MORE_CHAR_FINISHED);
     clear_readconv(fptr);
-    *lp = limit;
     return str;
 }
 
 static VALUE
-appendline(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *enc)
+appendline(rb_io_t *fptr, const char *rsptr, long rslen, long limit, rb_encoding *enc)
 {
     VALUE str = Qnil;
-    long limit = *lp;
     char *p;
     const char *hit;
     int searchlen, extra_limit = 16;
@@ -2854,8 +2851,6 @@ appendline(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *
 	long pending = READ_DATA_PENDING_COUNT(fptr);
 	if (pending > 0) {
 	    long last;
-	    
-	    p = READ_DATA_PENDING_PTR(fptr);
 
 	    if (limit > 0 && pending > limit) pending = limit;
 
@@ -2895,7 +2890,6 @@ appendline(rb_io_t *fptr, const char *rsptr, long rslen, long *lp, rb_encoding *
 	}
 	READ_CHECK(fptr);
     } while (io_fillbuf(fptr) >= 0);
-    *lp = limit;
     return str;
 }
 
@@ -3042,9 +3036,9 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
 	}
 
 	if (NEED_READCONV(fptr))
-	    str = appendline_readconv(fptr, rsptr, rslen, &limit, enc);
+	    str = appendline_readconv(fptr, rsptr, rslen, limit, enc);
 	else
-	    str = appendline(fptr, rsptr, rslen, &limit, enc);
+	    str = appendline(fptr, rsptr, rslen, limit, enc);
 
 	if (rspara && !NIL_P(str)) swallow(fptr, '\n');
 	if (!NIL_P(str)) str = io_enc_str(str, fptr);
