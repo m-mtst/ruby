@@ -2819,7 +2819,7 @@ appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long limit, rb
             if (hit) {
 		int len = (int)(hit-p+rslen);
 		int off_in_cbuf = appendlen - (searchlen - len);
-		str = rb_str_substr(str, 0, len);
+		rb_str_resize(str, len);
                 fptr->cbuf.off += off_in_cbuf;
                 fptr->cbuf.len -= off_in_cbuf;
                 limit -= off_in_cbuf;
@@ -2874,7 +2874,7 @@ appendline(rb_io_t *fptr, const char *rsptr, long rslen, long limit, rb_encoding
 	    if (hit) {
 		int len = hit - p + rslen;
 		int off_in_rbuf = pending - (searchlen - len);
-		str = rb_str_substr(str, 0, len);
+		rb_str_resize(str, len);
                 fptr->rbuf.off += off_in_rbuf;
                 fptr->rbuf.len -= off_in_rbuf;
 		limit -= off_in_rbuf;
@@ -2992,7 +2992,6 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
 {
     VALUE str = Qnil;
     rb_io_t *fptr;
-    int nolimit = 0;
     rb_encoding *enc;
 
     GetOpenFile(io, fptr);
@@ -3005,11 +3004,9 @@ rb_io_getline_1(VALUE rs, long limit, VALUE io)
 	return rb_enc_str_new(0, 0, io_read_encoding(fptr));
     }
     else {
-	int newline = -1;
 	const char *rsptr = 0;
 	long rslen = 0;
 	int rspara = 0;
-        int extra_limit = 16;
 
 	SET_BINARY_MODE(fptr);
         enc = io_read_encoding(fptr);
