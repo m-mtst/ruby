@@ -2762,7 +2762,7 @@ rssearch(const char *ptr, long len, const char *rsptr, long rslen, rb_encoding *
 	    adjusted = rb_enc_left_char_head(search_start, hit, pend, enc);
 
 	    if (hit == adjusted) {
-		return rslen == 0 ? hit + rslen - 1 : hit;
+		return hit + rslen - 1;
 	    }
 	    else {
 		search_start = hit + rslen;
@@ -2803,8 +2803,8 @@ appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long limit, rb
     make_readconv(fptr, 0);
     do {
         if (fptr->cbuf.len) {
-            p = fptr->cbuf.ptr+fptr->cbuf.off;
-            appendlen = fptr->cbuf.len;
+            p = READ_CHAR_PENDING_PTR(fptr);
+            appendlen = READ_CHAR_PENDING_COUNT(fptr);
             if (0 < limit && limit < appendlen) appendlen = (int)limit;
 
             if (NIL_P(str))
@@ -2817,7 +2817,7 @@ appendline_readconv(rb_io_t *fptr, const char *rsptr, long rslen, long limit, rb
 	    hit = rssearch(p, searchlen, rsptr, rslen, enc);
 
             if (hit) {
-		int len = hit - p + rslen;
+		int len = hit - p + 1;
 		int off_in_cbuf = appendlen - (searchlen - len);
 		rb_str_resize(str, len);
                 fptr->cbuf.off += off_in_cbuf;
@@ -2842,7 +2842,7 @@ static VALUE
 appendline(rb_io_t *fptr, const char *rsptr, long rslen, long limit, rb_encoding *enc)
 {
     VALUE str = Qnil;
-    char *p;
+    char *p, *search_start;
     const char *hit;
     int searchlen, extra_limit = 16;
 
@@ -2857,22 +2857,26 @@ appendline(rb_io_t *fptr, const char *rsptr, long rslen, long limit, rb_encoding
 	    if (NIL_P(str)) {
 		last = 0;
 		str = rb_str_buf_new(pending);
+		io_enc_str(str, fptr);
 		rb_str_set_len(str, pending);
+		search_start = RSTRING_PTR(str);
+		searchlen = pending;
 	    }
 	    else {
 		last = RSTRING_LEN(str);
 		rb_str_resize(str, last + pending);
+		search_start = RSTRING_PTR(str) + last - rslen;
+		searchlen = pending + rslen;
 	    }
 
 	    p = RSTRING_PTR(str);
-	    searchlen = RSTRING_LEN(str);
+	    MEMCPY(p + last, READ_DATA_PENDING_PTR(fptr), char, pending);
 
-	    MEMCPY(p + last, fptr->rbuf.ptr+fptr->rbuf.off, char, pending);
-
-	    hit = rssearch(p, searchlen, rsptr, rslen, enc);
+	    hit = rssearch(search_start, searchlen, rsptr, rslen, enc);
 	    if (hit) {
-		int len = hit - p + rslen;
-		int off_in_rbuf = pending - (searchlen - len);
+		int len = hit - p + 1;
+		int off_in_rbuf = pending - (RSTRING_LEN(str) - len);
+		/* printf("%s %d %ld %d\n", rsptr, len, rslen, off_in_rbuf); */
 		rb_str_resize(str, len);
                 fptr->rbuf.off += off_in_rbuf;
                 fptr->rbuf.len -= off_in_rbuf;
