@@ -1091,6 +1091,36 @@ st_foreach(st_table *table, int (*func)(ANYARGS), st_data_t arg)
     return 0;
 }
 
+VALUE
+st_keys(st_table *table)
+{
+    VALUE key, keys;
+
+    if (table->entries_packed) {
+	st_index_t i;
+	keys = rb_ary_new_capa(table->real_entries);
+	for (i = 0; i < table->real_entries; i++) {
+	    key = (VALUE)PKEY(table, i);
+	    RARRAY_ASET(keys, i, key);
+	}
+    }
+    else {
+	ptr = table->head;
+    }
+
+    if (ptr != 0) {
+	st_table_entry *ptr;
+	keys = rb_ary_new();
+	do {
+	    key = (VALUE)ptr->key;
+	    rb_ary_push(keys, key);
+	    ptr = ptr->fore;
+	} while (ptr && table->head);
+    }
+
+    return keys;
+}
+
 #if 0  /* unused right now */
 int
 st_reverse_foreach(st_table *table, int (*func)(ANYARGS), st_data_t arg)
