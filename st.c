@@ -1102,13 +1102,12 @@ st_keys(st_table *table, st_data_t never)
 	st_index_t i;
 	int len = table->real_entries;
 
-	keys = rb_ary_new_capa(len);
+	keys = rb_ary_new();
 	for (i = 0; i < len; i++) {
 	    key = PKEY(table, i);
 	    if (key == never) continue;
-	    RARRAY_ASET(keys, i, (VALUE)key);
+	    rb_ary_push(keys, (VALUE)key);
 	}
-	rb_ary_resize(keys, len);
     }
     else {
 	ptr = table->head;
