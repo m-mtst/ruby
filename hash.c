@@ -1680,13 +1680,6 @@ rb_hash_to_h(VALUE hash)
     return hash;
 }
 
-static int
-keys_i(VALUE key, VALUE value, VALUE ary)
-{
-    rb_ary_push(ary, key);
-    return ST_CONTINUE;
-}
-
 /*
  *  call-seq:
  *     hsh.keys    -> array

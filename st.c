@@ -8,6 +8,7 @@
 #else
 #include "ruby/ruby.h"
 #endif
+#include "internal.h"
 
 #include <stdio.h>
 #ifdef HAVE_STDLIB_H
@@ -1094,15 +1095,19 @@ st_foreach(st_table *table, int (*func)(ANYARGS), st_data_t arg)
 VALUE
 st_keys(st_table *table)
 {
+    st_table_entry *ptr;
     VALUE key, keys;
 
     if (table->entries_packed) {
 	st_index_t i;
-	keys = rb_ary_new_capa(table->real_entries);
-	for (i = 0; i < table->real_entries; i++) {
+	int len = table->real_entries;
+
+	keys = rb_ary_new_capa(len);
+	for (i = 0; i < len; i++) {
 	    key = (VALUE)PKEY(table, i);
 	    RARRAY_ASET(keys, i, key);
 	}
+	rb_ary_set_len(keys, len);
     }
     else {
 	ptr = table->head;
