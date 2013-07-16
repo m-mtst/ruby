@@ -8,7 +8,6 @@
 #else
 #include "ruby/ruby.h"
 #endif
-#include "internal.h"
 
 #include <stdio.h>
 #ifdef HAVE_STDLIB_H
@@ -1109,7 +1108,7 @@ st_keys(st_table *table, st_data_t never)
 	    if (key == never) continue;
 	    RARRAY_ASET(keys, i, (VALUE)key);
 	}
-	rb_ary_set_len(keys, len);
+	rb_ary_resize(keys, len);
     }
     else {
 	ptr = table->head;
