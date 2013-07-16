@@ -452,7 +452,7 @@ void ruby_sized_xfree(void *x, size_t size);
 void rb_gc_resurrect(VALUE ptr);
 
 /* st.c */
-VALUE st_keys(st_table *table);
+VALUE st_keys(st_table *table, st_data_t never);
 
 /* hash.c */
 struct st_table *rb_hash_tbl_raw(VALUE hash);

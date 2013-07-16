@@ -1698,7 +1698,7 @@ rb_hash_keys(VALUE hash)
     st_table *table = RHASH(hash)->ntbl;
 
     if (!table) return rb_ary_new();
-    return st_keys(table);
+    return st_keys(table, (st_data_t)Qundef);
 }
 
 static int

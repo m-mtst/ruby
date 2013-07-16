@@ -1093,10 +1093,11 @@ st_foreach(st_table *table, int (*func)(ANYARGS), st_data_t arg)
 }
 
 VALUE
-st_keys(st_table *table)
+st_keys(st_table *table, st_data_t never)
 {
-    st_table_entry *ptr;
-    VALUE key, keys;
+    st_table_entry *ptr = NULL;
+    st_data_t key;
+    VALUE keys;
 
     if (table->entries_packed) {
 	st_index_t i;
@@ -1104,8 +1105,9 @@ st_keys(st_table *table)
 
 	keys = rb_ary_new_capa(len);
 	for (i = 0; i < len; i++) {
-	    key = (VALUE)PKEY(table, i);
-	    RARRAY_ASET(keys, i, key);
+	    key = PKEY(table, i);
+	    if (key == never) continue;
+	    RARRAY_ASET(keys, i, (VALUE)key);
 	}
 	rb_ary_set_len(keys, len);
     }
@@ -1114,11 +1116,10 @@ st_keys(st_table *table)
     }
 
     if (ptr != 0) {
-	st_table_entry *ptr;
 	keys = rb_ary_new();
 	do {
-	    key = (VALUE)ptr->key;
-	    rb_ary_push(keys, key);
+	    key = ptr->key;
+	    if (key != never) rb_ary_push(keys, (VALUE)key);
 	    ptr = ptr->fore;
 	} while (ptr && table->head);
     }
