@@ -1092,10 +1092,10 @@ st_foreach(st_table *table, int (*func)(ANYARGS), st_data_t arg)
 }
 
 VALUE
-st_keys(st_table *table, st_data_t never)
+st_keys(st_table *table)
 {
     st_table_entry *ptr = NULL;
-    st_data_t key;
+    st_data_t key, never = (st_data_t)Qundef;
     VALUE keys;
 
     if (table->entries_packed) {
