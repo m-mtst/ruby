@@ -1099,8 +1099,7 @@ st_keys(st_table *table, st_data_t never)
     VALUE keys;
 
     if (table->entries_packed) {
-	st_index_t i;
-	int len = table->real_entries;
+	st_index_t i, len = table->real_entries;
 
 	keys = rb_ary_new();
 	for (i = 0; i < len; i++) {
