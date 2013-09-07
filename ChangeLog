@@ -1,3 +1,200 @@
+Sat Sep  7 15:36:00 2013  Charlie Somerville  <charliesome@ruby-lang.org>
+
+	* vm_eval.c (vm_call0): fix prototype, the id parameter should be of
+	  type ID, not VALUE
+
+	* vm_insnhelper.c (check_match): the rb_funcall family of functions
+	  does not care about refinements. We need to use
+	  rb_method_entry_with_refinements instead to call === with
+	  refinements. Thanks to Jon Conley for reporting this bug.
+	  [ruby-core:57051] [Bug #8872]
+
+	* test/ruby/test_refinement.rb: add test
+
+Sat Sep  7 13:49:40 2013  Kazuki Tsujimoto  <kazuki@callcc.net>
+
+	* variable.c (classname): the name of class that has
+	  non class id should not be nil. This bug was introduced
+	  in r36577.
+
+	* test/thread/test_cv.rb: test for change.
+
+Sat Sep  7 13:29:22 2013  Kazuki Tsujimoto  <kazuki@callcc.net>
+
+	* lib/find.rb (Find.find): respect the encodings of arguments.
+	  [ruby-dev:47530] [Feature #8657]
+
+	* test/test_find.rb: add tests.
+
+Sat Sep  7 10:40:32 2013  Tanaka Akira  <akr@fsij.org>
+
+	* ext/socket/mkconstants.rb (TCP_FASTOPEN): Defined for TCP fast open.
+	  [ruby-core:57048] [Feature #8871] patch by Masaki Matsushita.
+
+Fri Sep  6 23:53:31 2013  Masaki Matsushita  <glass.saga@gmail.com>
+
+	* common.mk: use RUNRUBY instead of MINIRUBY because MINIRUBY can't
+	  require extension libraries. The patch is from nobu
+	  (Nobuyoshi Nakada).
+
+	* ext/thread/extconf.rb: for build ext/thread/thread.c.
+
+	* include/ruby/intern.h: ditto.
+
+	* thread.c: ditto.
+
+	* lib/thread.rb: removed and replaced by ext/thread/thread.c.
+
+	* ext/thread/thread.c: Queue, SizedQueue and ConditionVariable
+	  implementations in C. This patch is based on patches from panaggio
+	  (Ricardo Panaggio) and funny_falcon (Yura Sokolov) and  ko1
+	  (Koichi Sasada). [ruby-core:31513] [Feature #3620]
+
+	* test/thread/test_queue.rb (test_queue_thread_raise): add a test for
+	  ensuring that killed thread should be removed from waiting threads.
+	  It is based on a code by ko1 (Koichi Sasada). [ruby-core:45950]
+
+Fri Sep  6 22:47:12 2013  Tanaka Akira  <akr@fsij.org>
+
+	* configure.in: Define ac_cv_func_clock_getres to yes for mingw*.
+
+Fri Sep  6 21:04:10 2013  Tanaka Akira  <akr@fsij.org>
+
+	* rational.c: Include gmp.h if GMP is used.
+	  (GMP_GCD_DIGITS): New macro.
+	  (rb_gcd_gmp): New function.
+	  (f_gcd_normal): Renamed from f_gcd.
+	  (rb_gcd_normal): New function.
+	  (f_gcd): Invoke rb_gcd_gmp or f_gcd_normal.
+
+	* internal.h (rb_gcd_normal): Declared.
+	  (rb_gcd_gmp): Ditto.
+
+	* ext/-test-/rational: New directory.
+
+	* test/-ext-/rational: New directory.
+
+Fri Sep  6 14:23:22 2013  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* win32/win32.c (clock_getres): required as well as clock_gettime().
+	  [ruby-dev:47699] [Bug #8869]
+
+Fri Sep  6 11:45:27 2013  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* transcode.c (rb_econv_append): new function to append a string data
+	  with converting its encoding.  split from rb_econv_substr_append.
+
+Fri Sep  6 02:37:22 2013  Aaron Patterson <aaron@tenderlovemaking.com>
+
+	* ext/psych/lib/psych/visitors/yaml_tree.rb: use double quotes when
+	  strings start with special characters.
+	  https://github.com/tenderlove/psych/issues/157
+
+	* test/psych/test_string.rb: test for change.
+
+Fri Sep  6 00:05:14 2013  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* class.c (rewrite_cref_stack): remove recursion.
+
+Thu Sep  5 18:05:00 2013  Charlie Somerville  <charliesome@ruby-lang.org>
+
+	* string.c (fstring_cmp): take string encoding into account when
+	  comparing fstrings [ruby-core:57037] [Bug #8866]
+
+	* test/ruby/test_string.rb: add test
+
+Thu Sep  5 17:25:49 2013  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* string.c (rb_fstring, rb_str_free): use st_data_t instead of VALUE.
+
+	* string.c (rb_fstring): get rid of duplicating already frozen object.
+
+	* parse.y (str_suffix_gen): freeze in advance to reduce objects.
+
+Thu Sep  5 14:01:22 2013  Eric Hodel  <drbrain@segment7.net>
+
+	* lib/optparse.rb:  The Integer acceptable now allows binary and
+	  hexadecimal numbers per the documentation.  [ruby-trunk - Bug #8865]
+
+	  DecimalInteger, OctalInteger, DecimalNumeric now validate their input
+	  before converting to a number.  [ruby-trunk - Bug #8865]
+
+	* test/optparse/test_acceptable.rb:  Tests for the above, tests for all
+	  numeric acceptables for existing behavior.
+
+Thu Sep  5 13:49:00 2013  Charlie Somerville  <charliesome@ruby-lang.org>
+
+	* include/ruby/ruby.h: add RSTRING_FSTR flag
+
+	* internal.h: add rb_fstring() prototype
+
+	* parse.y (str_suffix_gen): deduplicate frozen string literals
+
+	* string.c (rb_fstring): deduplicate frozen string literals
+
+	* string.c (rb_str_free): delete fstrings from frozen_strings table when
+	  they are GC'd
+
+	* string.c (Init_String): initialize frozen_strings table
+
+	* test/ruby/test_string.rb: test frozen strings are deduplicated
+
+Thu Sep  5 12:48:00 2013  Kenta Murata  <mrkn@cookpad.com>
+
+	* configure.in (with_gmp): set with_gmp no if it is empty.
+
+Thu Sep  5 10:41:00 2013  Charlie Somerville  <charliesome@ruby-lang.org>
+
+	* vm_insnhelper.c (vm_getivar): use class sequence to check class
+	  identity, instead of pointer + vm state
+
+	* vm_insnhelper.c (vm_setivar): ditto
+
+Thu Sep  5 08:20:58 2013  Tanaka Akira  <akr@fsij.org>
+
+	* bignum.c (GMP_DIV_DIGITS): New macro.
+	  (bary_divmod_gmp): New function.
+	  (rb_big_divrem_gmp): Ditto.
+	  (bary_divmod_branch): Ditto.
+	  (bary_divmod): Use bary_divmod_branch.
+	  (bigdivrem): Ditto.
+
+	* internal.h (rb_big_divrem_gmp): Declared.
+
+Thu Sep  5 06:22:42 2013  Tanaka Akira  <akr@fsij.org>
+
+	* bignum.c (bary_divmod_normal): Reduce temporary array allocations.
+
+Thu Sep  5 02:17:06 2013  Tanaka Akira  <akr@fsij.org>
+
+	* bignum.c (rb_big_divrem_normal): Add GC guards.
+
+Thu Sep  5 00:38:32 2013  Tanaka Akira  <akr@fsij.org>
+
+	* bignum.c (rb_big_divrem_normal): New function.
+
+	* internal.h (rb_big_divrem_normal): Declared.
+
+	* ext/-test-/bignum/div.c: New file.
+
+	* test/-ext-/bignum/test_div.rb: New file.
+
+Thu Sep  5 00:08:44 2013  Tanaka Akira  <akr@fsij.org>
+
+	* bignum.c (bigdivrem_normal): Removed.
+	  (bary_divmod_normal): New function.
+	  (bary_divmod): Use bary_divmod_normal.
+	  (bigdivrem): Use bary_divmod_normal.
+
+Wed Sep  4 23:02:12 2013  Tanaka Akira  <akr@fsij.org>
+
+	* bignum.c (bigdivrem): Useless declaration removed.
+
+Wed Sep  4 22:56:49 2013  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* numeric.c (NUM_STEP_GET_INF): split from NUM_STEP_SCAN_ARGS(), since
+	  inf is not used in num_step_size().
+
 Wed Sep  4 20:22:43 2013  Tanaka Akira  <akr@fsij.org>
 
 	* bignum.c (bigdivrem_normal): Add assertions.
@@ -450,7 +647,7 @@ Thu Aug 29 02:40:45 2013  Aaron Patterson <aaron@tenderlovemaking.com>
 
 	* ext/psych/lib/psych/scalar_scanner.rb: invalid floats should be
 	  treated as strings.
-	  [Fixes GH-156] https://github.com/tenderlove/psych/issues/156
+	  https://github.com/tenderlove/psych/issues/156
 
 	* test/psych/test_string.rb: test for change
 

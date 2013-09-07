@@ -600,6 +600,7 @@ size_t rb_strftime(char *s, size_t maxsize, const char *format, rb_encoding *enc
 #endif
 
 /* string.c */
+VALUE rb_fstring(VALUE);
 int rb_str_buf_cat_escaped_char(VALUE result, unsigned int c, int unicode_p);
 int rb_str_symname_p(VALUE);
 VALUE rb_str_quote_unprintable(VALUE);
@@ -696,6 +697,7 @@ VALUE rb_big_mul_balance(VALUE x, VALUE y);
 VALUE rb_big_mul_karatsuba(VALUE x, VALUE y);
 VALUE rb_big_mul_toom3(VALUE x, VALUE y);
 VALUE rb_big_sq_fast(VALUE x);
+VALUE rb_big_divrem_normal(VALUE x, VALUE y);
 VALUE rb_big2str_poweroftwo(VALUE x, int base);
 VALUE rb_big2str_generic(VALUE x, int base);
 VALUE rb_str2big_poweroftwo(VALUE arg, int base, int badcheck);
@@ -703,6 +705,7 @@ VALUE rb_str2big_normal(VALUE arg, int base, int badcheck);
 VALUE rb_str2big_karatsuba(VALUE arg, int base, int badcheck);
 #if defined(HAVE_LIBGMP) && defined(HAVE_GMP_H)
 VALUE rb_big_mul_gmp(VALUE x, VALUE y);
+VALUE rb_big_divrem_gmp(VALUE x, VALUE y);
 VALUE rb_big2str_gmp(VALUE x, int base);
 VALUE rb_str2big_gmp(VALUE arg, int base, int badcheck);
 #endif
@@ -729,6 +732,12 @@ void rb_execarg_fixup(VALUE execarg_obj);
 int rb_execarg_run_options(const struct rb_execarg *e, struct rb_execarg *s, char* errmsg, size_t errmsg_buflen);
 VALUE rb_execarg_extract_options(VALUE execarg_obj, VALUE opthash);
 void rb_execarg_setenv(VALUE execarg_obj, VALUE env);
+
+/* rational.c */
+VALUE rb_gcd_normal(VALUE self, VALUE other);
+#if defined(HAVE_LIBGMP) && defined(HAVE_GMP_H)
+VALUE rb_gcd_gmp(VALUE x, VALUE y);
+#endif
 
 /* util.c */
 extern const signed char ruby_digit36_to_number_table[];
