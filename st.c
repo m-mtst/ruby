@@ -1096,13 +1096,12 @@ st_keys(st_table *table)
 {
     st_table_entry *ptr = NULL;
     st_data_t key, never = (st_data_t)Qundef;
-    VALUE keys;
+    VALUE keys = rb_ary_new_capa(table->num_entries);
 
     if (table->entries_packed) {
-	st_index_t i, len = table->real_entries;
+	st_index_t i;
 
-	keys = rb_ary_new();
-	for (i = 0; i < len; i++) {
+	for (i = 0; i < table->real_entries; i++) {
 	    key = PKEY(table, i);
 	    if (key == never) continue;
 	    rb_ary_push(keys, (VALUE)key);
@@ -1113,7 +1112,6 @@ st_keys(st_table *table)
     }
 
     if (ptr != 0) {
-	keys = rb_ary_new();
 	do {
 	    key = ptr->key;
 	    if (key != never) rb_ary_push(keys, (VALUE)key);
