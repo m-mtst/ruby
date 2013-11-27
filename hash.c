@@ -1680,6 +1680,13 @@ rb_hash_to_h(VALUE hash)
     return hash;
 }
 
+static int
+keys_i(VALUE key, VALUE value, VALUE ary)
+{
+    rb_ary_push(ary, key);
+    return ST_CONTINUE;
+}
+
 /*
  *  call-seq:
  *     hsh.keys    -> array
@@ -1695,16 +1702,24 @@ rb_hash_to_h(VALUE hash)
 VALUE
 rb_hash_keys(VALUE hash)
 {
-    VALUE tmp, keys;
-    st_data_t *keys_ptr;
-    st_table *table = RHASH(hash)->ntbl;
+    VALUE keys;
     int size = RHASH_SIZE(hash);
 
-    if (!table) return rb_ary_new();
-    keys_ptr = ALLOCV_N(VALUE, tmp, size);
-    size = (int)st_keys(table, keys, size);
-    keys = rb_ary_new_from_values(size, keys_ptr);
-    if (tmp) ALLOCV_END(tmp);
+    if (__builtin_types_compatible_p(st_data_t, VALUE)) {
+	VALUE tmp;
+	st_data_t *keys_ptr;
+	st_table *table = RHASH(hash)->ntbl;
+	
+	if (!table) return rb_ary_new();
+	keys_ptr = ALLOCV_N(VALUE, tmp, size);
+	size = (int)st_keys(table, keys_ptr, size);
+	keys = rb_ary_new_from_values(size, keys_ptr);
+	if (tmp) ALLOCV_END(tmp);
+    }
+    else {
+	keys = rb_ary_new_capa(size);
+	rb_hash_foreach(hash, keys_i, keys);		
+    }
 
     return keys;
 }
