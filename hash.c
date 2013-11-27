@@ -1705,20 +1705,20 @@ rb_hash_keys(VALUE hash)
     VALUE keys;
     int size = RHASH_SIZE(hash);
 
-    if (__builtin_types_compatible_p(st_data_t, VALUE)) {
+    if (ST_DATA_COMPATIBLE_P(VALUE)) {
 	VALUE tmp;
 	st_data_t *keys_ptr;
 	st_table *table = RHASH(hash)->ntbl;
-	
+
 	if (!table) return rb_ary_new();
 	keys_ptr = ALLOCV_N(VALUE, tmp, size);
-	size = (int)st_keys(table, keys_ptr, size);
+	size = st_keys(table, keys_ptr, size);
 	keys = rb_ary_new_from_values(size, keys_ptr);
 	if (tmp) ALLOCV_END(tmp);
     }
     else {
 	keys = rb_ary_new_capa(size);
-	rb_hash_foreach(hash, keys_i, keys);		
+	rb_hash_foreach(hash, keys_i, keys);
     }
 
     return keys;

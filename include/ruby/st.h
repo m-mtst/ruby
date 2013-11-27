@@ -59,6 +59,13 @@ struct st_hash_type {
 
 #define ST_INDEX_BITS (sizeof(st_index_t) * CHAR_BIT)
 
+#if defined(HAVE_BUILTIN___BUILTIN_CHOOSE_EXPR) && defined(HAVE_BUILTIN___BUILTIN_TYPES_COMPATIBLE_P)
+# define ST_DATA_COMPATIBLE_P(type) \
+   __builtin_choose_expr(__builtin_types_compatible_p(type, st_data_t), 1, 0)
+#else
+# define ST_DATA_COMPATIBLE_P(type) 0
+#endif
+
 struct st_table {
     const struct st_hash_type *type;
     st_index_t num_bins;
