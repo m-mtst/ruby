@@ -1695,10 +1695,18 @@ rb_hash_to_h(VALUE hash)
 VALUE
 rb_hash_keys(VALUE hash)
 {
+    VALUE tmp, keys;
+    st_data_t *keys_ptr;
     st_table *table = RHASH(hash)->ntbl;
+    int size = RHASH_SIZE(hash);
 
     if (!table) return rb_ary_new();
-    return st_keys(table);
+    keys_ptr = ALLOCV_N(VALUE, tmp, size);
+    size = (int)st_keys(table, keys, size);
+    keys = rb_ary_new_from_values(size, keys_ptr);
+    if (tmp) ALLOCV_END(tmp);
+
+    return keys;
 }
 
 static int
