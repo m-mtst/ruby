@@ -1705,19 +1705,19 @@ rb_hash_keys(VALUE hash)
     VALUE keys;
     int size = RHASH_SIZE(hash);
 
+    keys = rb_ary_new_capa(size);
+    if (size == 0) return keys;
+
     if (ST_DATA_COMPATIBLE_P(VALUE)) {
-	VALUE tmp;
-	st_data_t *keys_ptr;
 	st_table *table = RHASH(hash)->ntbl;
 
-	if (!table) return rb_ary_new();
-	keys_ptr = ALLOCV_N(VALUE, tmp, size);
-	size = st_keys(table, keys_ptr, size);
-	keys = rb_ary_new_from_values(size, keys_ptr);
-	if (tmp) ALLOCV_END(tmp);
+	if (OBJ_PROMOTED(keys)) rb_gc_writebarrier_remember_promoted(keys);
+	RARRAY_PTR_USE(keys, ptr, {
+	    size = st_keys(table, ptr, size);
+	});
+	rb_ary_set_len(keys, size);
     }
     else {
-	keys = rb_ary_new_capa(size);
 	rb_hash_foreach(hash, keys_i, keys);
     }
 
