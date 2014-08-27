@@ -5900,7 +5900,7 @@ Init_File(void)
     rb_define_const(rb_mFConst, "DIRECT", INT2FIX(O_DIRECT));
 #endif
 #ifdef O_TMPFILE
-    /*  Try to minimize cache effects of the I/O to and from this file. */
+    /* enable secure and optimized temporary files creation */
     rb_define_const(rb_mFConst, "TMPFILE", INT2FIX(O_TMPFILE));
 #endif
 
