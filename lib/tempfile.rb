@@ -124,29 +124,33 @@ class Tempfile < DelegateClass(File)
   #
   # If Tempfile.new cannot find a unique filename within a limited
   # number of tries, then it will raise an exception.
-  def initialize(basename, *rest)
-    if block_given?
-      warn "Tempfile.new doesn't call the given block."
-    end
-    @data = []
-    @clean_proc = Remover.new(@data)
-    ObjectSpace.define_finalizer(self, @clean_proc)
+  def initialize(basename=nil, *rest)
+    warn "Tempfile.new doesn't call the given block." if block_given?
 
-    ::Dir::Tmpname.create(basename, *rest) do |tmpname, n, opts|
-      mode = File::RDWR|File::CREAT|File::EXCL
-      perm = 0600
-      if opts
-        mode |= opts.delete(:mode) || 0
-        opts[:perm] = perm
-        perm = nil
-      else
-        opts = perm
+    if basename
+      @data = []
+      @clean_proc = Remover.new(@data)
+      ObjectSpace.define_finalizer(self, @clean_proc)
+
+      ::Dir::Tmpname.create(basename, *rest) do |tmpname, n, opts|
+        mode = File::RDWR|File::CREAT|File::EXCL
+        perm = 0600
+        if opts
+          mode |= opts.delete(:mode) || 0
+          opts[:perm] = perm
+          perm = nil
+        else
+          opts = perm
+        end
+        @data[1] = @tmpfile = File.open(tmpname, mode, opts)
+        @data[0] = @tmpname = tmpname
+        @mode = mode & ~(File::CREAT|File::EXCL)
+        perm or opts.freeze
+        @opts = opts
       end
-      @data[1] = @tmpfile = File.open(tmpname, mode, opts)
-      @data[0] = @tmpname = tmpname
-      @mode = mode & ~(File::CREAT|File::EXCL)
-      perm or opts.freeze
-      @opts = opts
+    else
+      raise NotImplementedError, "O_TMPFILE not supported" unless defined?(File::TMPFILE)
+      mode = File::RDWR|File::TMPFILE
     end
 
     super(@tmpfile)
