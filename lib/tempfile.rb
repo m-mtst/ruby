@@ -124,7 +124,7 @@ class Tempfile < DelegateClass(File)
   #
   # If Tempfile.new cannot find a unique filename within a limited
   # number of tries, then it will raise an exception.
-  def initialize(basename, *rest)
+  def initialize(basename, *rest, mode: 0)
     if block_given?
       warn "Tempfile.new doesn't call the given block."
     end
@@ -133,10 +133,9 @@ class Tempfile < DelegateClass(File)
     ObjectSpace.define_finalizer(self, @clean_proc)
 
     ::Dir::Tmpname.create(basename, *rest) do |tmpname, n, opts|
-      mode = File::RDWR|File::CREAT|File::EXCL
+      mode = mode|File::RDWR|File::CREAT|File::EXCL
       perm = 0600
       if opts
-        mode |= opts.delete(:mode) || 0
         opts[:perm] = perm
         perm = nil
       else

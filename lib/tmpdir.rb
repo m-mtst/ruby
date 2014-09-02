@@ -81,8 +81,8 @@ class Dir
   #    FileUtils.remove_entry dir
   #  end
   #
-  def Dir.mktmpdir(prefix_suffix=nil, *rest)
-    path = Tmpname.create(prefix_suffix || "d", *rest) {|n| mkdir(n, 0700)}
+  def Dir.mktmpdir(prefix_suffix="d", *rest)
+    path = Tmpname.create(prefix_suffix, *rest) {|n| mkdir(n, 0700)}
     if block_given?
       begin
         yield path
@@ -122,15 +122,7 @@ class Dir
       path << suffix
     end
 
-    def create(basename, *rest)
-      if opts = Hash.try_convert(rest[-1])
-        opts = opts.dup if rest.pop.equal?(opts)
-        max_try = opts.delete(:max_try)
-        opts = [opts]
-      else
-        opts = []
-      end
-      tmpdir, = *rest
+    def create(basename, tmpdir, max_try: nil, **opts)
       if $SAFE > 0 and tmpdir.tainted?
         tmpdir = '/tmp'
       else
@@ -139,7 +131,7 @@ class Dir
       n = nil
       begin
         path = File.join(tmpdir, make_tmpname(basename, n))
-        yield(path, n, *opts)
+        yield(path, n, opts)
       rescue Errno::EEXIST
         n ||= 0
         n += 1
