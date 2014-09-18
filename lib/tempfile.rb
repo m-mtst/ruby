@@ -144,7 +144,7 @@ class Tempfile < DelegateClass(File)
       @data[1] = @tmpfile = File.open(tmpname, mode, opts)
       @data[0] = @tmpname = tmpname
       @mode = mode & ~(File::CREAT|File::EXCL)
-      perm or opts.freeze
+      opts.freeze unless perm
       @opts = opts
     end
 
