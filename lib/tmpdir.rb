@@ -17,7 +17,7 @@ class Dir
   ##
   # Returns the operating system's temporary file path.
 
-  def Dir::tmpdir
+  def self.tmpdir
     if $SAFE > 0
       @@systmpdir
     else
@@ -122,7 +122,7 @@ class Dir
       path << suffix
     end
 
-    def create(basename, tmpdir, max_try: nil, **opts)
+    def create(basename, tmpdir=nil, max_try: nil, **opts)
       if $SAFE > 0 and tmpdir.tainted?
         tmpdir = '/tmp'
       else

@@ -122,7 +122,7 @@ class Tempfile < DelegateClass(File)
   #
   # If Tempfile.new cannot find a unique filename within a limited
   # number of tries, then it will raise an exception.
-  def initialize(basename, tmpdir, mode: 0, **opts)
+  def initialize(basename, tmpdir=nil, mode: 0, **opts)
     if block_given?
       warn "Tempfile.new doesn't call the given block."
     end
@@ -347,7 +347,7 @@ end
 #      ... do something with f ...
 #   end
 #
-def Tempfile.create(basename, tmpdir, mode: 0, **opts)
+def Tempfile.create(basename, tmpdir=nil, mode: 0, **opts)
   tmpfile = nil
   Dir::Tmpname.create(basename, tmpdir, opts) do |tmpname, n, opts|
     mode = File::RDWR|File::CREAT|File::EXCL
