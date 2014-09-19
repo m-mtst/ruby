@@ -133,7 +133,7 @@ class Tempfile < DelegateClass(File)
     ObjectSpace.define_finalizer(self, @clean_proc)
 
     ::Dir::Tmpname.create(basename, *rest) do |tmpname, n, opts|
-      mode = mode|File::RDWR|File::CREAT|File::EXCL
+      mode |= File::RDWR|File::CREAT|File::EXCL
       perm = 0600
       if opts
         opts[:perm] = perm
