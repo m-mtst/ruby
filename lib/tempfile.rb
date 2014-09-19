@@ -350,7 +350,7 @@ end
 def Tempfile.create(basename, tmpdir=nil, mode: 0, **opts)
   tmpfile = nil
   Dir::Tmpname.create(basename, tmpdir, opts) do |tmpname, n, opts|
-    mode = File::RDWR|File::CREAT|File::EXCL
+    mode |= File::RDWR|File::CREAT|File::EXCL
     opts[:perm] = 0600
     tmpfile = File.open(tmpname, mode, opts)
   end
