@@ -1032,4 +1032,15 @@ class TestTime < Test::Unit::TestCase
     }
   end
 
+  def test_to_i_unit
+    t = Time.now
+    assert_equal t.to_i, t.to_i(:second)
+
+    milliseconds = (t.to_i * 1000) + (t.usec / 1000)
+    assert_equal milliseconds, t.to_i(:millisecond)
+
+    assert_raise(ArgumentError) do
+      t.to_i(:hoge)
+    end
+  end
 end

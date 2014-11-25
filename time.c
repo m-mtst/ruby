@@ -33,6 +33,7 @@
 
 static ID id_divmod, id_mul, id_submicro, id_nano_num, id_nano_den, id_offset, id_zone;
 static ID id_eq, id_ne, id_quo, id_div, id_cmp;
+static VALUE sym_SECOND, sym_MILLISECOND;
 
 #define NDIV(x,y) (-(-((x)+1)/(y))-1)
 #define NMOD(x,y) ((y)-(-((x)+1)%(y))-1)
@@ -3159,12 +3160,33 @@ time_s_mktime(int argc, VALUE *argv, VALUE klass)
  */
 
 static VALUE
-time_to_i(VALUE time)
+time_to_i(int argc, VALUE *argv, VALUE time)
 {
     struct time_object *tobj;
-
     GetTimeval(time, tobj);
+
+    if (argc > 0) {
+	VALUE unit = argv[0];
+
+	if (unit == sym_SECOND) {
+	    goto second;
+	}
+	if (unit == sym_MILLISECOND) {
+	    return w2v(wdiv(tobj->timew, WINT2FIXWV(TIME_SCALE / 1000)));
+	}
+	else {
+	    rb_raise(rb_eArgError, "invalid unit specified");
+	}
+    }
+
+  second:
     return w2v(wdiv(tobj->timew, WINT2FIXWV(TIME_SCALE)));
+}
+
+static VALUE
+time_tv_sec(VALUE time)
+{
+    return time_to_i(0, NULL, time);
 }
 
 /*
@@ -4967,7 +4989,7 @@ Init_Time(void)
     rb_define_singleton_method(rb_cTime, "local", time_s_mktime, -1);
     rb_define_singleton_method(rb_cTime, "mktime", time_s_mktime, -1);
 
-    rb_define_method(rb_cTime, "to_i", time_to_i, 0);
+    rb_define_method(rb_cTime, "to_i", time_to_i, -1);
     rb_define_method(rb_cTime, "to_f", time_to_f, 0);
     rb_define_method(rb_cTime, "to_r", time_to_r, 0);
     rb_define_method(rb_cTime, "<=>", time_cmp, 1);
@@ -5023,7 +5045,7 @@ Init_Time(void)
     rb_define_method(rb_cTime, "friday?", time_friday, 0);
     rb_define_method(rb_cTime, "saturday?", time_saturday, 0);
 
-    rb_define_method(rb_cTime, "tv_sec", time_to_i, 0);
+    rb_define_method(rb_cTime, "tv_sec", time_tv_sec, 0);
     rb_define_method(rb_cTime, "tv_usec", time_usec, 0);
     rb_define_method(rb_cTime, "usec", time_usec, 0);
     rb_define_method(rb_cTime, "tv_nsec", time_nsec, 0);
@@ -5044,4 +5066,7 @@ Init_Time(void)
 #ifdef DEBUG_FIND_TIME_NUMGUESS
     rb_define_virtual_variable("$find_time_numguess", find_time_numguess_getter, NULL);
 #endif
+
+    sym_SECOND = ID2SYM(rb_intern("second"));
+    sym_MILLISECOND = ID2SYM(rb_intern("millisecond"));
 }
