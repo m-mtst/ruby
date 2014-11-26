@@ -1033,7 +1033,7 @@ class TestTime < Test::Unit::TestCase
   end
 
   def test_to_i_unit
-    t = Time.now
+    t = Time.utc(2040, 1, 1, 0, 0, 0)
     assert_equal t.to_i, t.to_i(:second)
 
     milliseconds = (t.to_i * 1000) + (t.usec / 1000)
