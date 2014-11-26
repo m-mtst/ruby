@@ -356,7 +356,7 @@ rb_szqueue_clear(VALUE self)
 static VALUE
 rb_szqueue_num_waiting(VALUE self)
 {
-    VALUE len_v = rb_funcall2(self, rb_intern("num_waiting"), 0, NULL);
+    VALUE len_v = rb_call_super(0, NULL);
     long len = NUM2LONG(len_v);
     VALUE waiters = GET_SZQUEUE_WAITERS(self);
     len += RARRAY_LEN(waiters);
