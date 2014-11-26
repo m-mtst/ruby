@@ -734,8 +734,8 @@ srcs-enc: $(ENC_MK)
 	$(ECHO) making srcs under enc
 	$(Q) $(MAKE) -f $(ENC_MK) RUBY="$(MINIRUBY)" MINIRUBY="$(MINIRUBY)" $(MFLAGS) srcs
 
-all-incs: incs
-incs: $(INSNS) {$(VPATH)}node_name.inc {$(VPATH)}encdb.h {$(VPATH)}transdb.h {$(VPATH)}known_errors.inc \
+all-incs: incs {$(VPATH)}encdb.h {$(VPATH)}transdb.h
+incs: $(INSNS) {$(VPATH)}node_name.inc {$(VPATH)}known_errors.inc \
       $(srcdir)/revision.h $(REVISION_H) enc/unicode/name2ctype.h enc/jis/props.h \
       {$(VPATH)}id.h {$(VPATH)}probes.dmyh
 
@@ -774,7 +774,7 @@ $(MINIPRELUDE_C): $(COMPILE_PRELUDE) {$(srcdir)}prelude.rb
 	$(Q) $(BASERUBY) $(srcdir)/tool/generic_erb.rb -I$(srcdir) -o $@ \
 		$(srcdir)/template/prelude.c.tmpl prelude.rb
 
-$(PRELUDE_C): $(COMPILE_PRELUDE) $(RBCONFIG) \
+$(PRELUDE_C): $(COMPILE_PRELUDE) \
 	   {$(srcdir)}lib/rubygems/defaults.rb \
 	   {$(srcdir)}lib/rubygems/core_ext/kernel_gem.rb \
 	   $(PRELUDE_SCRIPTS) $(PREP) $(LIB_SRCS)
@@ -782,7 +782,7 @@ $(PRELUDE_C): $(COMPILE_PRELUDE) $(RBCONFIG) \
 	$(Q) $(MINIRUBY) $(srcdir)/tool/generic_erb.rb -I$(srcdir) -c -o $@ \
 		$(srcdir)/template/prelude.c.tmpl $(PRELUDE_SCRIPTS)
 
-{$(VPATH)}golf_prelude.c: $(COMPILE_PRELUDE) $(RBCONFIG) {$(srcdir)}golf_prelude.rb $(PREP)
+{$(VPATH)}golf_prelude.c: $(COMPILE_PRELUDE) {$(srcdir)}golf_prelude.rb $(PREP)
 	$(ECHO) generating $@
 	$(Q) $(MINIRUBY) $(srcdir)/tool/generic_erb.rb -I$(srcdir) -c -o $@ \
 		$(srcdir)/template/prelude.c.tmpl golf_prelude.rb
@@ -792,7 +792,7 @@ probes.dmyh: {$(srcdir)}probes.d $(srcdir)/tool/gen_dummy_probes.rb
 
 probes.h: {$(VPATH)}probes.$(DTRACE_EXT)
 
-prereq: incs srcs preludes PHONY
+prereq: incs srcs {$(VPATH)}miniprelude.c PHONY
 
 preludes: {$(VPATH)}prelude.c
 preludes: {$(VPATH)}miniprelude.c

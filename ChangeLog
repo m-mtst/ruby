@@ -1,3 +1,29 @@
+Wed Nov 26 11:01:35 2014  Eric Wong  <e@80x24.org>
+
+	* iseq.c (iseq_s_compile_file): close IO when done
+
+Wed Nov 26 06:06:23 2014  Tanaka Akira  <akr@fsij.org>
+
+	* common.mk: encdb.h and transdb.h depends on $(PREP).
+	  So prebuild files for them in tarball are useless.
+
+Wed Nov 26 02:08:44 2014  Tanaka Akira  <akr@fsij.org>
+
+	* tool/make-snapshot: Don't generate enc/trans/newline.c in tarball.
+
+Wed Nov 26 00:41:44 2014  Tanaka Akira  <akr@fsij.org>
+
+	* common.mk (prereq): Don't depends on prelude.c and golf_prelude.c.
+	  Since they depend on $(PREP) which is miniruby, they are rebuilt
+	  after miniruby is built, even if tarball contains them.
+
+Wed Nov 26 00:20:48 2014  Tanaka Akira  <akr@fsij.org>
+
+	* template/prelude.c.tmpl: Don't expand RbConfig::Config[...].
+	  It is not used now.
+
+	* common.mk: prelude.c and golf_prelude.c doesn't depend on rbconfig.
+
 Tue Nov 25 17:07:06 2014  Koichi Sasada  <ko1@atdot.net>
 
 	* NEWS: add an "Implementation changes" section.
