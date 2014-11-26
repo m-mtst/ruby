@@ -3171,7 +3171,7 @@ time_to_i(int argc, VALUE *argv, VALUE time)
 	if (unit == sym_SECOND) {
 	    goto second;
 	}
-	if (unit == sym_MILLISECOND) {
+	else if (unit == sym_MILLISECOND) {
 	    return w2v(wdiv(tobj->timew, WINT2FIXWV(TIME_SCALE / 1000)));
 	}
 	else {
