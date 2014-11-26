@@ -174,84 +174,11 @@ rb_condvar_broadcast(VALUE self)
     return self;
 }
 
-/*
- *  Document-class: Queue
- *
- *  This class provides a way to synchronize communication between threads.
- *
- *  Example:
- *
- *	require 'thread'
- *    	queue = Queue.new
- *
- *	producer = Thread.new do
- *	  5.times do |i|
- *	     sleep rand(i) # simulate expense
- *	     queue << i
- *	     puts "#{i} produced"
- *	  end
- *	end
- *
- *	consumer = Thread.new do
- *	  5.times do |i|
- *	     value = queue.pop
- *	     sleep rand(i/2) # simulate expense
- *	     puts "consumed #{value}"
- *	  end
- *	end
- *
- */
-
-/*
- * Document-method: Queue::new
- *
- * Creates a new queue instance.
- */
-
-static VALUE
-rb_queue_initialize(VALUE self)
-{
-    RSTRUCT_SET(self, QUEUE_QUE, ary_buf_new());
-    RSTRUCT_SET(self, QUEUE_WAITERS, ary_buf_new());
-    return self;
-}
-
-static VALUE
-queue_do_push(VALUE self, VALUE obj)
-{
-    rb_ary_push(GET_QUEUE_QUE(self), obj);
-    wakeup_first_thread(GET_QUEUE_WAITERS(self));
-    return self;
-}
-
-/*
- * Document-method: Queue#push
- * call-seq:
- *   push(object)
- *   enq(object)
- *   <<(object)
- *
- * Pushes the given +object+ to the queue.
- */
-
-static VALUE
-rb_queue_push(VALUE self, VALUE obj)
-{
-    return queue_do_push(self, obj);
-}
-
 static unsigned long
 queue_length(VALUE self)
 {
-    VALUE que = GET_QUEUE_QUE(self);
-    return RARRAY_LEN(que);
-}
-
-static unsigned long
-queue_num_waiting(VALUE self)
-{
-    VALUE waiters = GET_QUEUE_WAITERS(self);
-    return RARRAY_LEN(waiters);
+    VALUE length_v = rb_funcall2(self, rb_intern("length"), 0, NULL);
+    return NUM2ULONG(length_v);
 }
 
 struct waiting_delete {
@@ -264,118 +191,6 @@ queue_delete_from_waiting(struct waiting_delete *p)
 {
     rb_ary_delete(p->waiting, p->th);
     return Qnil;
-}
-
-static VALUE
-queue_sleep(VALUE arg)
-{
-    rb_thread_sleep_deadly();
-    return Qnil;
-}
-
-static VALUE
-queue_do_pop(VALUE self, int should_block)
-{
-    struct waiting_delete args;
-    args.waiting = GET_QUEUE_WAITERS(self);
-    args.th	 = rb_thread_current();
-
-    while (queue_length(self) == 0) {
-	if (!should_block) {
-	    rb_raise(rb_eThreadError, "queue empty");
-	}
-	rb_ary_push(args.waiting, args.th);
-	rb_ensure(queue_sleep, (VALUE)0, queue_delete_from_waiting, (VALUE)&args);
-    }
-
-    return rb_ary_shift(GET_QUEUE_QUE(self));
-}
-
-static int
-queue_pop_should_block(int argc, const VALUE *argv)
-{
-    int should_block = 1;
-    rb_check_arity(argc, 0, 1);
-    if (argc > 0) {
-	should_block = !RTEST(argv[0]);
-    }
-    return should_block;
-}
-
-/*
- * Document-method: Queue#pop
- * call-seq:
- *   pop(non_block=false)
- *   deq(non_block=false)
- *   shift(non_block=false)
- *
- * Retrieves data from the queue.
- *
- * If the queue is empty, the calling thread is suspended until data is pushed
- * onto the queue. If +non_block+ is true, the thread isn't suspended, and an
- * exception is raised.
- */
-
-static VALUE
-rb_queue_pop(int argc, VALUE *argv, VALUE self)
-{
-    int should_block = queue_pop_should_block(argc, argv);
-    return queue_do_pop(self, should_block);
-}
-
-/*
- * Document-method: Queue#empty?
- * call-seq: empty?
- *
- * Returns +true+ if the queue is empty.
- */
-
-static VALUE
-rb_queue_empty_p(VALUE self)
-{
-    return queue_length(self) == 0 ? Qtrue : Qfalse;
-}
-
-/*
- * Document-method: Queue#clear
- *
- * Removes all objects from the queue.
- */
-
-static VALUE
-rb_queue_clear(VALUE self)
-{
-    rb_ary_clear(GET_QUEUE_QUE(self));
-    return self;
-}
-
-/*
- * Document-method: Queue#length
- * call-seq:
- *   length
- *   size
- *
- * Returns the length of the queue.
- */
-
-static VALUE
-rb_queue_length(VALUE self)
-{
-    unsigned long len = queue_length(self);
-    return ULONG2NUM(len);
-}
-
-/*
- * Document-method: Queue#num_waiting
- *
- * Returns the number of threads waiting on the queue.
- */
-
-static VALUE
-rb_queue_num_waiting(VALUE self)
-{
-    unsigned long len = queue_num_waiting(self);
-    return ULONG2NUM(len);
 }
 
 /*
@@ -511,10 +326,8 @@ static VALUE
 rb_szqueue_pop(int argc, VALUE *argv, VALUE self)
 {
     VALUE retval = rb_call_super(argc, argv);
-    VALUE length_v = rb_funcall2(self, rb_intern("length"), 0, NULL);
-    unsigned long queue_length = NUM2ULONG(length_v);
 
-    if (queue_length < GET_SZQUEUE_ULONGMAX(self)) {
+    if (queue_length(self) < GET_SZQUEUE_ULONGMAX(self)) {
 	wakeup_first_thread(GET_SZQUEUE_WAITERS(self));
     }
 
