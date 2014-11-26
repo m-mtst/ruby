@@ -1603,6 +1603,7 @@ RUBY_EXTERN VALUE rb_cThread;
 RUBY_EXTERN VALUE rb_cTime;
 RUBY_EXTERN VALUE rb_cTrueClass;
 RUBY_EXTERN VALUE rb_cUnboundMethod;
+RUBY_EXTERN VALUE rb_cQueue;
 
 RUBY_EXTERN VALUE rb_eException;
 RUBY_EXTERN VALUE rb_eStandardError;

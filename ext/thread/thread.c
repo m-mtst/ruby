@@ -587,18 +587,14 @@ Init_thread(void)
 	OUTER,
 	"ConditionVariable", rb_cObject, rb_struct_alloc_noinit,
 	"waiters", NULL);
-    VALUE rb_cQueue = rb_struct_define_without_accessor_under(
-	OUTER,
-	"Queue", rb_cObject, rb_struct_alloc_noinit,
-	"que", "waiters", NULL);
+
     VALUE rb_cSizedQueue = rb_struct_define_without_accessor_under(
-	OUTER,
+	rb_cQueue,
 	"SizedQueue", rb_cQueue, rb_struct_alloc_noinit,
 	"que", "waiters", "queue_waiters", "size", NULL);
 
 #if 0
     rb_cConditionVariable = rb_define_class("ConditionVariable", rb_cObject); /* teach rdoc ConditionVariable */
-    rb_cQueue = rb_define_class("Queue", rb_cObject); /* teach rdoc Queue */
     rb_cSizedQueue = rb_define_class("SizedQueue", rb_cObject); /* teach rdoc SizedQueue */
 #endif
 
@@ -610,27 +606,6 @@ Init_thread(void)
     rb_define_method(rb_cConditionVariable, "wait", rb_condvar_wait, -1);
     rb_define_method(rb_cConditionVariable, "signal", rb_condvar_signal, 0);
     rb_define_method(rb_cConditionVariable, "broadcast", rb_condvar_broadcast, 0);
-
-    rb_define_method(rb_cQueue, "initialize", rb_queue_initialize, 0);
-    rb_undef_method(rb_cQueue, "initialize_copy");
-    rb_define_method(rb_cQueue, "marshal_dump", undumpable, 0);
-    rb_define_method(rb_cQueue, "push", rb_queue_push, 1);
-    rb_define_method(rb_cQueue, "pop", rb_queue_pop, -1);
-    rb_define_method(rb_cQueue, "empty?", rb_queue_empty_p, 0);
-    rb_define_method(rb_cQueue, "clear", rb_queue_clear, 0);
-    rb_define_method(rb_cQueue, "length", rb_queue_length, 0);
-    rb_define_method(rb_cQueue, "num_waiting", rb_queue_num_waiting, 0);
-
-    /* Alias for #push. */
-    rb_define_alias(rb_cQueue, "enq", "push");
-    /* Alias for #push. */
-    rb_define_alias(rb_cQueue, "<<", "push");
-    /* Alias for #pop. */
-    rb_define_alias(rb_cQueue, "deq", "pop");
-    /* Alias for #pop. */
-    rb_define_alias(rb_cQueue, "shift", "pop");
-    /* Alias for #length. */
-    rb_define_alias(rb_cQueue, "size", "length");
 
     rb_define_method(rb_cSizedQueue, "initialize", rb_szqueue_initialize, 1);
     rb_define_method(rb_cSizedQueue, "max", rb_szqueue_max_get, 0);
