@@ -490,19 +490,7 @@ rb_szqueue_push(int argc, VALUE *argv, VALUE self)
 	rb_ary_push(args.waiting, args.th);
 	rb_ensure((VALUE (*)())rb_thread_sleep_deadly, (VALUE)0, queue_delete_from_waiting, (VALUE)&args);
     }
-    return queue_do_push(self, argv[0]);
-}
-
-static VALUE
-szqueue_do_pop(VALUE self, int should_block)
-{
-    VALUE retval = queue_do_pop(self, should_block);
-
-    if (queue_length(self) < GET_SZQUEUE_ULONGMAX(self)) {
-	wakeup_first_thread(GET_SZQUEUE_WAITERS(self));
-    }
-
-    return retval;
+    return rb_call_super(argc, argv);
 }
 
 /*
@@ -522,12 +510,19 @@ szqueue_do_pop(VALUE self, int should_block)
 static VALUE
 rb_szqueue_pop(int argc, VALUE *argv, VALUE self)
 {
-    int should_block = queue_pop_should_block(argc, argv);
-    return szqueue_do_pop(self, should_block);
+    VALUE retval = rb_call_super(argc, argv);
+    VALUE length_v = rb_funcall2(self, rb_intern("length"), 0, NULL);
+    unsigned long queue_length = NUM2ULONG(length_v);
+
+    if (queue_length < GET_SZQUEUE_ULONGMAX(self)) {
+	wakeup_first_thread(GET_SZQUEUE_WAITERS(self));
+    }
+
+    return retval;
 }
 
 /*
- * Document-method: Queue#clear
+ * Document-method: SizedQueue#clear
  *
  * Removes all objects from the queue.
  */
@@ -535,9 +530,8 @@ rb_szqueue_pop(int argc, VALUE *argv, VALUE self)
 static VALUE
 rb_szqueue_clear(VALUE self)
 {
-    rb_ary_clear(GET_QUEUE_QUE(self));
     wakeup_all_threads(GET_SZQUEUE_WAITERS(self));
-    return self;
+    return rb_call_super(0, NULL);
 }
 
 /*
@@ -549,7 +543,8 @@ rb_szqueue_clear(VALUE self)
 static VALUE
 rb_szqueue_num_waiting(VALUE self)
 {
-    long len = queue_num_waiting(self);
+    VALUE len_v = rb_funcall2(self, rb_intern("num_waiting"), 0, NULL);
+    long len = NUM2LONG(len_v);
     VALUE waiters = GET_SZQUEUE_WAITERS(self);
     len += RARRAY_LEN(waiters);
     return ULONG2NUM(len);
@@ -626,6 +621,5 @@ Init_thread(void)
 
     rb_provide("thread.rb");
     ALIAS_GLOBAL_CONST(ConditionVariable);
-    ALIAS_GLOBAL_CONST(Queue);
     ALIAS_GLOBAL_CONST(SizedQueue);
 }
