@@ -92,6 +92,14 @@ Init_fcntl(void)
      */
     rb_define_const(mFcntl, "F_GETLK", INT2NUM(F_GETLK));
 #endif
+#ifdef F_OFD_GETLK
+    /* Document-const: F_OFD_GETLK
+     *
+     * Determine whether a given region of open file description is locked.
+     * This uses one of the F_*LK flags.
+     */
+    rb_define_const(mFcntl, "F_OFD_GETLK", INT2NUM(F_OFD_GETLK));
+#endif
 #ifdef F_SETFD
     /* Document-const: F_SETFD
      *
@@ -130,6 +138,22 @@ Init_fcntl(void)
      * one of the F_*LCK flags
      */
     rb_define_const(mFcntl, "F_SETLKW", INT2NUM(F_SETLKW));
+#endif
+#ifdef F_OFD_SETLK
+    /* Document-const: F_OFD_SETLK
+     *
+     * Acquire a lock on a region of open file description.
+     * This uses one of the F_*LCK flags.
+     */
+    rb_define_const(mFcntl, "F_OFD_SETLK", INT2NUM(F_OFD_SETLK));
+#endif
+#ifdef F_OFD_SETLKW
+    /* Document-const: F_OFD_SETLKW
+     *
+     * Acquire a lock on a region of open file description, waiting if necessary.
+     * This uses one of the F_*LCK flags.
+     */
+    rb_define_const(mFcntl, "F_OFD_SETLKW", INT2NUM(F_OFD_SETLKW));
 #endif
 #ifdef FD_CLOEXEC
     /* Document-const: FD_CLOEXEC
