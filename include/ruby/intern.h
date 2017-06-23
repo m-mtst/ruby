@@ -517,6 +517,7 @@ RUBY_EXTERN VALUE rb_rs;
 RUBY_EXTERN VALUE rb_default_rs;
 RUBY_EXTERN VALUE rb_output_rs;
 VALUE rb_io_write(VALUE, VALUE);
+VALUE rb_io_writev(VALUE, VALUE);
 VALUE rb_io_gets(VALUE);
 VALUE rb_io_getbyte(VALUE);
 VALUE rb_io_ungetc(VALUE, VALUE);

@@ -164,7 +164,7 @@ VALUE rb_default_rs;
 static VALUE argf;
 
 #define id_exception idException
-static ID id_write, id_read, id_getc, id_flush, id_readpartial, id_set_encoding;
+static ID id_write, id_writev, id_read, id_getc, id_flush, id_readpartial, id_set_encoding;
 static VALUE sym_mode, sym_perm, sym_flags, sym_extenc, sym_intenc, sym_encoding, sym_open_args;
 static VALUE sym_textmode, sym_binmode, sym_autoclose;
 static VALUE sym_SET, sym_CUR, sym_END;
@@ -1533,6 +1533,208 @@ rb_io_addstr(VALUE io, VALUE str)
 {
     rb_io_write(io, str);
     return io;
+}
+
+#ifdef HAVE_WRITEV
+struct binwritev_arg {
+    rb_io_t *fptr;
+    const struct iovec *iov;
+    int iovcnt;
+};
+
+static VALUE
+call_writev_internal(VALUE arg)
+{
+    struct binwritev_arg *p = (struct binwritev_arg *)arg;
+    return rb_writev_internal(p->fptr->fd, p->iov, p->iovcnt);
+}
+
+static long
+io_binwritev(struct iovec *iov, int iovcnt, rb_io_t *fptr)
+{
+    int i;
+    long r, total = 0, written_len = 0;
+
+    /* don't write anything if current thread has a pending interrupt. */
+    rb_thread_check_ints();
+
+    if (iovcnt == 0) return 0;
+    for (i = 1; i < iovcnt; i++) total += iov[i].iov_len;
+
+    if (fptr->wbuf.ptr == NULL && !(fptr->mode & FMODE_SYNC)) {
+	fptr->wbuf.off = 0;
+	fptr->wbuf.len = 0;
+	fptr->wbuf.capa = IO_WBUF_CAPA_MIN;
+	fptr->wbuf.ptr = ALLOC_N(char, fptr->wbuf.capa);
+	fptr->write_lock = rb_mutex_new();
+	rb_mutex_allow_trap(fptr->write_lock, 1);
+    }
+
+    if (fptr->wbuf.ptr && fptr->wbuf.len) {
+	if (fptr->wbuf.off + fptr->wbuf.len + total <= fptr->wbuf.capa) {
+	    long offset = fptr->wbuf.off;
+	    for (i = 1; i < iovcnt; i++) {
+		memcpy(fptr->wbuf.ptr+offset, iov[i].iov_base, iov[i].iov_len);
+		offset += iov[i].iov_len;
+	    }
+	    fptr->wbuf.len += total;
+	    return total;
+	}
+	else {
+	    iov[0].iov_base = fptr->wbuf.ptr + fptr->wbuf.off;
+	    iov[0].iov_len  = fptr->wbuf.len;
+	}
+    }
+    else {
+	iov++;
+	iovcnt--;
+    }
+
+  retry:
+    if (fptr->write_lock) {
+	struct binwritev_arg arg;
+	arg.fptr = fptr;
+	arg.iov  = iov;
+	arg.iovcnt = iovcnt;
+	r = rb_mutex_synchronize(fptr->write_lock, call_writev_internal, (VALUE)&arg);
+    }
+    else {
+	r = rb_writev_internal(fptr->fd, iov, iovcnt);
+    }
+
+    if (r >= 0) {
+	written_len += r;
+	if (fptr->wbuf.ptr && fptr->wbuf.len) {
+	    if (written_len < fptr->wbuf.len) {
+		fptr->wbuf.off += r;
+		fptr->wbuf.len -= r;
+	    }
+	    else {
+		fptr->wbuf.off = 0;
+		fptr->wbuf.len = 0;
+	    }
+	}
+	if (written_len == total) return written_len;
+
+	for (i = 0; i < iovcnt; i++) {
+	    if (r > (ssize_t)iov[i].iov_len) {
+		r -= iov[i].iov_len;
+		iov[i].iov_len = 0;
+            }
+	    else {
+		iov[i].iov_base = (char *)iov[i].iov_base + r;
+		iov[i].iov_len  -= r;
+		break;
+	    }
+	}
+
+        errno = EAGAIN;
+    }
+    if (rb_io_wait_writable(fptr->fd)) {
+        rb_io_check_closed(fptr);
+	goto retry;
+    }
+
+    return -1L;
+}
+
+static long
+io_fwritev(VALUE ary, rb_io_t *fptr)
+{
+    int i, iovcnt = RARRAY_LENINT(ary) + 1, converted;
+    long n;
+    VALUE v1, v2, str, tmp, *tmp_array;
+    struct iovec *iov;
+
+    if (iovcnt > IOV_MAX) {
+	rb_raise(rb_eArgError, "too many items (IOV_MAX: %d)", IOV_MAX);
+    }
+
+    iov = ALLOCV_N(struct iovec, v1, iovcnt);
+    tmp_array = ALLOCV_N(VALUE, v2, RARRAY_LEN(ary));
+
+    for (i = 0; i < RARRAY_LEN(ary); i++) {
+	str = rb_obj_as_string(RARRAY_AREF(ary, i));
+	converted = 0;
+	str = do_writeconv(str, fptr, &converted);
+	if (converted)
+	    OBJ_FREEZE(str);
+
+	tmp = rb_str_tmp_frozen_acquire(str);
+	tmp_array[i] = tmp;
+	iov[i+1].iov_base = RSTRING_PTR(tmp);
+	iov[i+1].iov_len = RSTRING_LEN(tmp);
+    }
+
+    n = io_binwritev(iov, iovcnt, fptr);
+    if (v1) ALLOCV_END(v1);
+
+    for (i = 0; i < RARRAY_LEN(ary); i++) {
+	rb_str_tmp_frozen_release(RARRAY_AREF(ary, i), tmp_array[i]);
+    }
+
+    if (v2) ALLOCV_END(v2);
+
+    return n;
+}
+
+static VALUE
+io_writev(VALUE io, VALUE ary)
+{
+    rb_io_t *fptr;
+    long n;
+    VALUE tmp;
+
+    io = GetWriteIO(io);
+    ary = rb_check_array_type(ary);
+    tmp = rb_io_check_io(io);
+    if (NIL_P(tmp)) {
+	/* port is not IO, call writev method for it. */
+	return rb_funcallv(io, id_writev, 1, &ary);
+    }
+    io = tmp;
+
+    GetOpenFile(io, fptr);
+    rb_io_check_writable(fptr);
+
+    n = io_fwritev(ary, fptr);
+    if (n == -1L) rb_sys_fail_path(fptr->pathv);
+
+    return LONG2FIX(n);
+}
+#else
+static VALUE
+io_writev(VALUE io, VALUE ary)
+{
+    rb_io_t *fptr;
+    long n;
+    VALUE str, tmp;
+
+    io = GetWriteIO(io);
+    ary = rb_check_array_type(ary);
+    tmp = rb_io_check_io(io);
+    if (NIL_P(tmp)) {
+	/* port is not IO, call writev method for it. */
+	return rb_funcallv(io, id_writev, 1, &ary);
+    }
+    io = tmp;
+
+    str = rb_ary_join(ary, rb_str_new(0, 0));
+
+    GetOpenFile(io, fptr);
+    rb_io_check_writable(fptr);
+
+    n = io_fwrite(str, fptr, 0);
+    if (n == -1L) rb_sys_fail_path(fptr->pathv);
+
+    return LONG2FIX(n);
+}
+#endif /* HAVE_WRITEV */
+
+VALUE
+rb_io_writev(VALUE io, VALUE ary)
+{
+    return rb_funcallv(io, id_writev, 1, &ary);
 }
 
 #ifdef HAVE_FSYNC
@@ -12542,6 +12744,7 @@ Init_IO(void)
     rb_eEOFError = rb_define_class("EOFError", rb_eIOError);
 
     id_write = rb_intern("write");
+    id_writev = rb_intern("writev");
     id_read = rb_intern("read");
     id_getc = rb_intern("getc");
     id_flush = rb_intern("flush");
@@ -12675,6 +12878,7 @@ Init_IO(void)
     rb_define_method(rb_cIO, "readpartial",  io_readpartial, -1);
     rb_define_method(rb_cIO, "read",  io_read, -1);
     rb_define_method(rb_cIO, "write", io_write_m, 1);
+    rb_define_method(rb_cIO, "writev", io_writev, 1);
     rb_define_method(rb_cIO, "gets",  rb_io_gets_m, -1);
     rb_define_method(rb_cIO, "readline",  rb_io_readline, -1);
     rb_define_method(rb_cIO, "getc",  rb_io_getc, 0);
