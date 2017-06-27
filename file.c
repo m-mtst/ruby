@@ -93,6 +93,18 @@ int flock(int, int);
 #include <sys/time.h>
 #endif
 
+#ifdef HAVE_SYSCALL_H
+# include <syscall.h>
+#elif defined HAVE_SYS_SYSCALL_H
+# include <sys/syscall.h>
+#endif
+#ifndef RENAME_NOREPLACE
+# define RENAME_NOREPLACE 1
+#endif
+#ifndef RENAME_EXCHANGE
+# define RENAME_EXCHANGE 2
+#endif
+
 #if !defined HAVE_LSTAT && !defined lstat
 #define lstat stat
 #endif
@@ -2839,19 +2851,33 @@ rb_file_s_unlink(int argc, VALUE *argv, VALUE klass)
 /*
  *  call-seq:
  *     File.rename(old_name, new_name)   -> 0
+ *     File.rename(old_name, new_name, exhcnage: bool, noreplace: bool)   -> 0
  *
  *  Renames the given file to the new name. Raises a
  *  <code>SystemCallError</code> if the file cannot be renamed.
  *
  *     File.rename("afile", "afile.bak")   #=> 0
+ *
+ *  When <i>exchange</i> is true, old_name and new_name will be atomically
+ *  changed. If <i>noreplace<i> is true, new_name will not be overwritten and
+ *  an exception will be raised.
  */
 
 static VALUE
-rb_file_s_rename(VALUE klass, VALUE from, VALUE to)
+rb_file_s_rename(int argc, VALUE *argv, VALUE klass)
 {
+    static ID keyword_ids[2];
     const char *src, *dst;
-    VALUE f, t;
+    unsigned int flags = 0;
+    VALUE from, to, f, t, opt, vnoreplace, vexchange;
+    VALUE kwargs[2];
 
+    if (!keyword_ids[0]) {
+	CONST_ID(keyword_ids[0], "noreplace");
+	CONST_ID(keyword_ids[1], "exchange");
+    }
+
+    rb_scan_args(argc, argv, "2:", &from, &to, &opt);
     FilePathValue(from);
     FilePathValue(to);
     f = rb_str_encode_ospath(from);
@@ -2861,6 +2887,28 @@ rb_file_s_rename(VALUE klass, VALUE from, VALUE to)
 #if defined __CYGWIN__
     errno = 0;
 #endif
+    if (!NIL_P(opt)) {
+	rb_get_kwargs(opt, keyword_ids, 0, 2, kwargs);
+	vnoreplace = kwargs[0];
+	vexchange = kwargs[1];
+	if (vnoreplace != Qundef && !NIL_P(vnoreplace)) {
+	    flags |= RENAME_NOREPLACE;
+	}
+	if (vexchange != Qundef && !NIL_P(vexchange)) {
+	    flags |= RENAME_EXCHANGE;
+	}
+	if (flags) { /* use renameat2 */
+#if defined __linux__ && defined __NR_renameat2
+	    if (syscall(__NR_renameat2, AT_FDCWD, src, AT_FDCWD, dst, flags) < 0) {
+		int e = errno;
+		syserr_fail2(e, from, to);
+	    }
+	    return INT2FIX(0);
+#else
+	    rb_raise(rb_eNotImpError, "additional flags are not supported");
+#endif
+	}
+    }
     if (rename(src, dst) < 0) {
 	int e = errno;
 #if defined DOSISH
@@ -6015,7 +6063,7 @@ Init_File(void)
 
     rb_define_singleton_method(rb_cFile, "unlink", rb_file_s_unlink, -1);
     rb_define_singleton_method(rb_cFile, "delete", rb_file_s_unlink, -1);
-    rb_define_singleton_method(rb_cFile, "rename", rb_file_s_rename, 2);
+    rb_define_singleton_method(rb_cFile, "rename", rb_file_s_rename, -1);
     rb_define_singleton_method(rb_cFile, "umask", rb_file_s_umask, -1);
     rb_define_singleton_method(rb_cFile, "truncate", rb_file_s_truncate, 2);
     rb_define_singleton_method(rb_cFile, "mkfifo", rb_file_s_mkfifo, -1);

@@ -716,6 +716,26 @@ class TestFileExhaustive < Test::Unit::TestCase
     end
   end
 
+  def test_rename_exchange
+    content = File.read(regular_file)
+    assert_equal(0, File.rename(regular_file, zerofile, exchange: true))
+    assert_file.exist?(regular_file)
+    assert_equal(true, File.empty?(regular_file))
+    assert_equal(content, File.read(zerofile))
+    assert_raise(Errno::ENOENT) { File.rename(regular_file, nofile, exchange: true) }
+    assert_raise(Errno::EINVAL) { File.rename(regular_file, nofile, exchange: true, noreplace: true) }
+  rescue NotImplementedError
+  end if POSIX
+
+  def test_rename_noreplace
+    assert_equal(0, File.rename(regular_file, nofile, noreplace: true))
+    assert_file.not_exist?(regular_file)
+    assert_file.exist?(nofile)
+    assert_equal(0, File.rename(nofile, regular_file, noreplace: true))
+    assert_raise(Errno::EEXIST) { assert_equal(0, File.rename(regular_file, zerofile, noreplace: true)) }
+  rescue NotImplementedError
+  end if POSIX
+
   def test_umask
     prev = File.umask(0777)
     assert_equal(0777, File.umask)
