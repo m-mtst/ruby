@@ -366,6 +366,16 @@ class TestIO < Test::Unit::TestCase
     }
   end
 
+  def test_copy_stream_small_offload
+    mkcdtmpdir {
+      content = "foobar"
+      File.write("src", content)
+      ret = IO.copy_stream("src", "dst", offload: true)
+      assert_equal(content.bytesize, ret)
+      assert_equal(content, File.read("dst"))
+    }
+  end
+
   def test_copy_stream_smaller
     with_srccontent {|src, content|
 
@@ -415,11 +425,33 @@ class TestIO < Test::Unit::TestCase
     }
   end
 
+  def test_copy_stream_pipe_offload
+    with_srccontent {|src, content|
+      pipe(proc do |w|
+        # it should fallback to read/write
+        ret = IO.copy_stream(src, w, offload: true)
+        assert_equal(content.bytesize, ret)
+        w.close
+      end, proc do |r|
+        assert_equal(content, r.read)
+      end)
+    }
+  end
+
   def test_copy_stream_write_pipe
     with_srccontent {|src, content|
       with_pipe {|r, w|
         w.close
         assert_raise(IOError) { IO.copy_stream(src, w) }
+      }
+    }
+  end
+
+  def test_copy_stream_write_pipe_offload
+    with_srccontent {|src, content|
+      with_pipe {|r, w|
+        w.close
+        assert_raise(IOError) { IO.copy_stream(src, w, offload: true) }
       }
     }
   end
@@ -631,6 +663,42 @@ class TestIO < Test::Unit::TestCase
       with_pipe {|r, w|
         w.close
         assert_raise(IOError) { IO.copy_stream(src, w) }
+      }
+    }
+  end
+
+  def test_copy_stream_bigcontent_offload
+    with_bigsrc {|bigsrc, bigcontent|
+      ret = IO.copy_stream(bigsrc, "bigdst", offload: true)
+      assert_equal(bigcontent.bytesize, ret)
+      assert_equal(bigcontent, File.read("bigdst"))
+    }
+  end
+
+  def test_copy_stream_bigcontent_mid_offload
+    with_bigsrc {|bigsrc, bigcontent|
+      ret = IO.copy_stream(bigsrc, "bigdst", 30000, 100, offload: true)
+      assert_equal(30000, ret)
+      assert_equal(bigcontent[100, 30000], File.read("bigdst"))
+    }
+  end
+
+  def test_copy_stream_bigcontent_fpos_offload
+    with_bigsrc {|bigsrc, bigcontent|
+      File.open(bigsrc) {|f|
+        begin
+          assert_equal(0, f.pos)
+          ret = IO.copy_stream(f, "bigdst", nil, 10, offload: true)
+          assert_equal(bigcontent.bytesize-10, ret)
+          assert_equal(bigcontent[10..-1], File.read("bigdst"))
+          assert_equal(0, f.pos)
+          ret = IO.copy_stream(f, "bigdst", 40, 30, offload: true)
+          assert_equal(40, ret)
+          assert_equal(bigcontent[30, 40], File.read("bigdst"))
+          assert_equal(0, f.pos)
+        rescue NotImplementedError
+          #skip "pread(2) is not implemtented."
+        end
       }
     }
   end
