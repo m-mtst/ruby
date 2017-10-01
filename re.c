@@ -260,6 +260,9 @@ rb_memsearch(const void *x0, long m, const void *y0, long n, rb_encoding *enc)
 	else
 	    return -1;
     }
+#ifdef HAVE_MEMMEM
+    return rb_memsearch_ss(x0, m, y0, n);
+#else
     else if (LIKELY(rb_enc_mbminlen(enc) == 1)) {
 	if (m <= SIZEOF_VALUE) {
 	    return rb_memsearch_ss(x0, m, y0, n);
@@ -275,6 +278,7 @@ rb_memsearch(const void *x0, long m, const void *y0, long n, rb_encoding *enc)
 	return rb_memsearch_qchar(x0, m, y0, n);
     }
     return rb_memsearch_qs(x0, m, y0, n);
+#endif
 }
 
 #define REG_LITERAL FL_USER5
