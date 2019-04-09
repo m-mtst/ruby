@@ -97,6 +97,10 @@ int flock(int, int);
 #define lstat stat
 #endif
 
+#ifndef HAVE_STATX
+#include "ruby/statx.h"
+#endif
+
 /* define system APIs */
 #ifdef _WIN32
 #include "win32/file.h"
@@ -481,7 +485,7 @@ rb_file_path(VALUE obj)
 static size_t
 stat_memsize(const void *p)
 {
-    return sizeof(struct stat);
+    return sizeof(struct statx);
 }
 
 static const rb_data_type_t stat_data_type = {
@@ -491,32 +495,59 @@ static const rb_data_type_t stat_data_type = {
 };
 
 static VALUE
-stat_new_0(VALUE klass, const struct stat *st)
+stat_new_0(VALUE klass, const struct statx *stx)
 {
-    struct stat *nst = 0;
+    struct statx *nstx = NULL;
     VALUE obj = TypedData_Wrap_Struct(klass, &stat_data_type, 0);
 
-    if (st) {
-	nst = ALLOC(struct stat);
-	*nst = *st;
-	RTYPEDDATA_DATA(obj) = nst;
+    if (stx) {
+	nstx = ALLOC(struct statx);
+	*nstx = *stx;
+	RTYPEDDATA_DATA(obj) = nstx;
     }
     return obj;
 }
 
+#define STATX_BASIC_STATS 0x07ffU
+
 VALUE
 rb_stat_new(const struct stat *st)
 {
-    return stat_new_0(rb_cStat, st);
+    struct statx stx = {
+      .stx_mask = STATX_BASIC_STATS,
+      .stx_blksize = st->st_blksize,
+      .stx_nlink = st->st_nlink,
+      .stx_uid = st->st_uid,
+      .stx_gid = st->st_gid,
+      .stx_mode = st->st_mode,
+      .stx_ino = st->st_ino,
+      .stx_size = st->st_size,
+      .stx_blocks = st->st_blocks,
+      /* .stx_atime = statx_convert_timestamp (st.st_atim), */
+      /* .stx_ctime = statx_convert_timestamp (st.st_ctim), */
+      /* .stx_mtime = statx_convert_timestamp (st.st_mtim), */
+      .stx_rdev_major = major (st->st_rdev),
+      .stx_rdev_minor = minor (st->st_rdev),
+      .stx_dev_major = major (st->st_dev),
+      .stx_dev_minor = minor (st->st_dev),
+    };
+
+    return stat_new_0(rb_cStat, &stx);
 }
 
-static struct stat*
-get_stat(VALUE self)
+static VALUE
+rb_stat_new_statx(const struct statx *stx)
 {
-    struct stat* st;
-    TypedData_Get_Struct(self, struct stat, &stat_data_type, st);
-    if (!st) rb_raise(rb_eTypeError, "uninitialized File::Stat");
-    return st;
+    return stat_new_0(rb_cStat, stx);
+}
+
+static struct statx*
+get_statx(VALUE self)
+{
+    struct statx* stx;
+    TypedData_Get_Struct(self, struct statx, &stat_data_type, stx);
+    if (!stx) rb_raise(rb_eTypeError, "uninitialized File::Stat");
+    return stx;
 }
 
 static struct timespec stat_mtimespec(const struct stat *st);
@@ -540,8 +571,8 @@ static VALUE
 rb_stat_cmp(VALUE self, VALUE other)
 {
     if (rb_obj_is_kind_of(other, rb_obj_class(self))) {
-        struct timespec ts1 = stat_mtimespec(get_stat(self));
-        struct timespec ts2 = stat_mtimespec(get_stat(other));
+        struct statx_timestamp ts1 = get_statx(self)->stx_mtime;
+        struct statx_timestamp ts2 = get_statx(other)->stx_mtime;
         if (ts1.tv_sec == ts2.tv_sec) {
             if (ts1.tv_nsec == ts2.tv_nsec) return INT2FIX(0);
             if (ts1.tv_nsec < ts2.tv_nsec) return INT2FIX(-1);
@@ -578,7 +609,9 @@ rb_stat_cmp(VALUE self, VALUE other)
 static VALUE
 rb_stat_dev(VALUE self)
 {
-    return DEVT2NUM(get_stat(self)->st_dev);
+    struct statx *stx = get_statx(self);
+    dev_t dev = makedev(stx->stx_dev_major, stx->stx_dev_minor);
+    return DEVT2NUM(dev);
 }
 
 /*
@@ -595,11 +628,7 @@ rb_stat_dev(VALUE self)
 static VALUE
 rb_stat_dev_major(VALUE self)
 {
-#if defined(major)
-    return UINT2NUM(major(get_stat(self)->st_dev));
-#else
-    return Qnil;
-#endif
+    return UINT2NUM(get_statx(self)->stx_dev_major);
 }
 
 /*
@@ -616,11 +645,7 @@ rb_stat_dev_major(VALUE self)
 static VALUE
 rb_stat_dev_minor(VALUE self)
 {
-#if defined(minor)
-    return UINT2NUM(minor(get_stat(self)->st_dev));
-#else
-    return Qnil;
-#endif
+    return UINT2NUM(get_statx(self)->stx_dev_minor);
 }
 
 /*
@@ -636,16 +661,17 @@ rb_stat_dev_minor(VALUE self)
 static VALUE
 rb_stat_ino(VALUE self)
 {
+    //TODO
 #ifdef HAVE_STRUCT_STAT_ST_INOHIGH
     /* assume INTEGER_PACK_LSWORD_FIRST and st_inohigh is just next of st_ino */
-    return rb_integer_unpack(&get_stat(self)->st_ino, 2,
+    return rb_integer_unpack(&get_statx(self)->stx_ino, 2,
             SIZEOF_STRUCT_STAT_ST_INO, 0,
             INTEGER_PACK_LSWORD_FIRST|INTEGER_PACK_NATIVE_BYTE_ORDER|
             INTEGER_PACK_2COMP);
 #elif SIZEOF_STRUCT_STAT_ST_INO > SIZEOF_LONG
-    return ULL2NUM(get_stat(self)->st_ino);
+    return ULL2NUM(get_statx(self)->stx_ino);
 #else
-    return ULONG2NUM(get_stat(self)->st_ino);
+    return ULONG2NUM(get_statx(self)->stx_ino);
 #endif
 }
 
@@ -665,7 +691,7 @@ rb_stat_ino(VALUE self)
 static VALUE
 rb_stat_mode(VALUE self)
 {
-    return UINT2NUM(ST2UINT(get_stat(self)->st_mode));
+    return UINT2NUM(ST2UINT(get_statx(self)->stx_mode));
 }
 
 /*
@@ -683,7 +709,7 @@ rb_stat_mode(VALUE self)
 static VALUE
 rb_stat_nlink(VALUE self)
 {
-    return UINT2NUM(get_stat(self)->st_nlink);
+    return UINT2NUM(get_statx(self)->stx_nlink);
 }
 
 /*
@@ -699,7 +725,7 @@ rb_stat_nlink(VALUE self)
 static VALUE
 rb_stat_uid(VALUE self)
 {
-    return UIDT2NUM(get_stat(self)->st_uid);
+    return UIDT2NUM(get_statx(self)->stx_uid);
 }
 
 /*
@@ -715,7 +741,7 @@ rb_stat_uid(VALUE self)
 static VALUE
 rb_stat_gid(VALUE self)
 {
-    return GIDT2NUM(get_stat(self)->st_gid);
+    return GIDT2NUM(get_statx(self)->stx_gid);
 }
 
 /*
@@ -733,11 +759,10 @@ rb_stat_gid(VALUE self)
 static VALUE
 rb_stat_rdev(VALUE self)
 {
-#ifdef HAVE_STRUCT_STAT_ST_RDEV
-    return DEVT2NUM(get_stat(self)->st_rdev);
-#else
-    return Qnil;
-#endif
+//TODO: ifdef HAVE_STRUCT_STAT_ST_RDEV
+    struct statx *stx = get_statx(self);
+    dev_t dev = makedev(stx->stx_rdev_major, stx->stx_rdev_minor);
+    return DEVT2NUM(dev);
 }
 
 /*
@@ -754,11 +779,8 @@ rb_stat_rdev(VALUE self)
 static VALUE
 rb_stat_rdev_major(VALUE self)
 {
-#if defined(HAVE_STRUCT_STAT_ST_RDEV) && defined(major)
-    return UINT2NUM(major(get_stat(self)->st_rdev));
-#else
-    return Qnil;
-#endif
+//TODO: HAVE_STRUCT_STAT_ST_RDEV
+    return UINT2NUM(get_statx(self)->stx_rdev_major);
 }
 
 /*
@@ -775,11 +797,8 @@ rb_stat_rdev_major(VALUE self)
 static VALUE
 rb_stat_rdev_minor(VALUE self)
 {
-#if defined(HAVE_STRUCT_STAT_ST_RDEV) && defined(minor)
-    return UINT2NUM(minor(get_stat(self)->st_rdev));
-#else
-    return Qnil;
-#endif
+//TODO: HAVE_STRUCT_STAT_ST_RDEV
+    return UINT2NUM(get_statx(self)->stx_rdev_minor);
 }
 
 /*
@@ -794,7 +813,7 @@ rb_stat_rdev_minor(VALUE self)
 static VALUE
 rb_stat_size(VALUE self)
 {
-    return OFFT2NUM(get_stat(self)->st_size);
+    return OFFT2NUM(get_statx(self)->stx_size);
 }
 
 /*
@@ -812,7 +831,7 @@ static VALUE
 rb_stat_blksize(VALUE self)
 {
 #ifdef HAVE_STRUCT_STAT_ST_BLKSIZE
-    return ULONG2NUM(get_stat(self)->st_blksize);
+    return ULONG2NUM(get_statx(self)->stx_blksize);
 #else
     return Qnil;
 #endif
@@ -834,9 +853,9 @@ rb_stat_blocks(VALUE self)
 {
 #ifdef HAVE_STRUCT_STAT_ST_BLOCKS
 # if SIZEOF_STRUCT_STAT_ST_BLOCKS > SIZEOF_LONG
-    return ULL2NUM(get_stat(self)->st_blocks);
+    return ULL2NUM(get_statx(self)->stx_blocks);
 # else
-    return ULONG2NUM(get_stat(self)->st_blocks);
+    return ULONG2NUM(get_statx(self)->stx_blocks);
 # endif
 #else
     return Qnil;
@@ -867,6 +886,12 @@ stat_atime(const struct stat *st)
     return rb_time_nano_new(ts.tv_sec, ts.tv_nsec);
 }
 
+static VALUE
+statx_atime(const struct statx *stx)
+{
+    return rb_time_nano_new(stx->stx_atime.tv_sec, stx->stx_atime.tv_nsec);
+}
+
 static struct timespec
 stat_mtimespec(const struct stat *st)
 {
@@ -889,6 +914,12 @@ stat_mtime(const struct stat *st)
 {
     struct timespec ts = stat_mtimespec(st);
     return rb_time_nano_new(ts.tv_sec, ts.tv_nsec);
+}
+
+static VALUE
+statx_mtime(const struct statx *stx)
+{
+    return rb_time_nano_new(stx->stx_mtime.tv_sec, stx->stx_mtime.tv_nsec);
 }
 
 static struct timespec
@@ -915,7 +946,18 @@ stat_ctime(const struct stat *st)
     return rb_time_nano_new(ts.tv_sec, ts.tv_nsec);
 }
 
-#define HAVE_STAT_BIRTHTIME
+static VALUE
+statx_ctime(const struct statx *stx)
+{
+    return rb_time_nano_new(stx->stx_ctime.tv_sec, stx->stx_ctime.tv_nsec);
+}
+
+static VALUE
+statx_btime(const struct statx *stx)
+{
+    return rb_time_nano_new(stx->stx_btime.tv_sec, stx->stx_btime.tv_nsec);
+}
+
 #if defined(HAVE_STRUCT_STAT_ST_BIRTHTIMESPEC)
 typedef struct stat statx_data;
 static VALUE
@@ -924,11 +966,11 @@ stat_birthtime(const struct stat *st)
     const struct timespec *ts = &st->st_birthtimespec;
     return rb_time_nano_new(ts->tv_sec, ts->tv_nsec);
 }
+# define HAVE_STAT_BIRTHTIME
 #elif defined(_WIN32)
 typedef struct stat statx_data;
 # define stat_birthtime stat_ctime
-#else
-# undef HAVE_STAT_BIRTHTIME
+# define HAVE_STAT_BIRTHTIME
 #endif
 
 /*
@@ -945,7 +987,7 @@ typedef struct stat statx_data;
 static VALUE
 rb_stat_atime(VALUE self)
 {
-    return stat_atime(get_stat(self));
+    return statx_atime(get_statx(self));
 }
 
 /*
@@ -961,7 +1003,7 @@ rb_stat_atime(VALUE self)
 static VALUE
 rb_stat_mtime(VALUE self)
 {
-    return stat_mtime(get_stat(self));
+    return statx_mtime(get_statx(self));
 }
 
 /*
@@ -981,7 +1023,7 @@ rb_stat_mtime(VALUE self)
 static VALUE
 rb_stat_ctime(VALUE self)
 {
-    return stat_ctime(get_stat(self));
+    return statx_ctime(get_statx(self));
 }
 
 #if defined(HAVE_STAT_BIRTHTIME)
@@ -1010,7 +1052,7 @@ rb_stat_ctime(VALUE self)
 static VALUE
 rb_stat_birthtime(VALUE self)
 {
-    return stat_birthtime(get_stat(self));
+    return statx_btime(get_statx(self));
 }
 #else
 # define rb_stat_birthtime rb_f_notimplement
@@ -2211,36 +2253,36 @@ rb_file_s_size(VALUE klass, VALUE fname)
 }
 
 static VALUE
-rb_file_ftype(const struct stat *st)
+file_ftype(mode_t mode)
 {
     const char *t;
 
-    if (S_ISREG(st->st_mode)) {
+    if (S_ISREG(mode)) {
 	t = "file";
     }
-    else if (S_ISDIR(st->st_mode)) {
+    else if (S_ISDIR(mode)) {
 	t = "directory";
     }
-    else if (S_ISCHR(st->st_mode)) {
+    else if (S_ISCHR(mode)) {
 	t = "characterSpecial";
     }
 #ifdef S_ISBLK
-    else if (S_ISBLK(st->st_mode)) {
+    else if (S_ISBLK(mode)) {
 	t = "blockSpecial";
     }
 #endif
 #ifdef S_ISFIFO
-    else if (S_ISFIFO(st->st_mode)) {
+    else if (S_ISFIFO(mode)) {
 	t = "fifo";
     }
 #endif
 #ifdef S_ISLNK
-    else if (S_ISLNK(st->st_mode)) {
+    else if (S_ISLNK(mode)) {
 	t = "link";
     }
 #endif
 #ifdef S_ISSOCK
-    else if (S_ISSOCK(st->st_mode)) {
+    else if (S_ISSOCK(mode)) {
 	t = "socket";
     }
 #endif
@@ -2249,6 +2291,18 @@ rb_file_ftype(const struct stat *st)
     }
 
     return rb_usascii_str_new2(t);
+}
+
+static VALUE
+rb_file_ftype(const struct stat *st)
+{
+    return file_ftype(st->st_mode);
+}
+
+static VALUE
+rb_file_ftype_statx(const struct statx *stx)
+{
+    return file_ftype(stx->stx_mode);
 }
 
 /*
@@ -5485,7 +5539,7 @@ rb_stat_init_copy(VALUE copy, VALUE orig)
 static VALUE
 rb_stat_ftype(VALUE obj)
 {
-    return rb_file_ftype(get_stat(obj));
+    return rb_file_ftype_statx(get_statx(obj));
 }
 
 /*
@@ -5502,7 +5556,7 @@ rb_stat_ftype(VALUE obj)
 static VALUE
 rb_stat_d(VALUE obj)
 {
-    if (S_ISDIR(get_stat(obj)->st_mode)) return Qtrue;
+    if (S_ISDIR(get_statx(obj)->stx_mode)) return Qtrue;
     return Qfalse;
 }
 
@@ -5518,7 +5572,7 @@ static VALUE
 rb_stat_p(VALUE obj)
 {
 #ifdef S_IFIFO
-    if (S_ISFIFO(get_stat(obj)->st_mode)) return Qtrue;
+    if (S_ISFIFO(get_statx(obj)->stx_mode)) return Qtrue;
 
 #endif
     return Qfalse;
@@ -5544,7 +5598,7 @@ static VALUE
 rb_stat_l(VALUE obj)
 {
 #ifdef S_ISLNK
-    if (S_ISLNK(get_stat(obj)->st_mode)) return Qtrue;
+    if (S_ISLNK(get_statx(obj)->stx_mode)) return Qtrue;
 #endif
     return Qfalse;
 }
@@ -5565,7 +5619,7 @@ static VALUE
 rb_stat_S(VALUE obj)
 {
 #ifdef S_ISSOCK
-    if (S_ISSOCK(get_stat(obj)->st_mode)) return Qtrue;
+    if (S_ISSOCK(get_statx(obj)->stx_mode)) return Qtrue;
 
 #endif
     return Qfalse;
@@ -5588,7 +5642,7 @@ static VALUE
 rb_stat_b(VALUE obj)
 {
 #ifdef S_ISBLK
-    if (S_ISBLK(get_stat(obj)->st_mode)) return Qtrue;
+    if (S_ISBLK(get_statx(obj)->stx_mode)) return Qtrue;
 
 #endif
     return Qfalse;
@@ -5609,7 +5663,7 @@ rb_stat_b(VALUE obj)
 static VALUE
 rb_stat_c(VALUE obj)
 {
-    if (S_ISCHR(get_stat(obj)->st_mode)) return Qtrue;
+    if (S_ISCHR(get_statx(obj)->stx_mode)) return Qtrue;
 
     return Qfalse;
 }
@@ -5629,14 +5683,14 @@ rb_stat_c(VALUE obj)
 static VALUE
 rb_stat_owned(VALUE obj)
 {
-    if (get_stat(obj)->st_uid == geteuid()) return Qtrue;
+    if (get_statx(obj)->stx_uid == geteuid()) return Qtrue;
     return Qfalse;
 }
 
 static VALUE
 rb_stat_rowned(VALUE obj)
 {
-    if (get_stat(obj)->st_uid == getuid()) return Qtrue;
+    if (get_statx(obj)->stx_uid == getuid()) return Qtrue;
     return Qfalse;
 }
 
@@ -5656,7 +5710,7 @@ static VALUE
 rb_stat_grpowned(VALUE obj)
 {
 #ifndef _WIN32
-    if (rb_group_member(get_stat(obj)->st_gid)) return Qtrue;
+    if (rb_group_member(get_statx(obj)->stx_gid)) return Qtrue;
 #endif
     return Qfalse;
 }
@@ -5675,21 +5729,21 @@ rb_stat_grpowned(VALUE obj)
 static VALUE
 rb_stat_r(VALUE obj)
 {
-    struct stat *st = get_stat(obj);
+    struct statx *stx = get_statx(obj);
 
 #ifdef USE_GETEUID
     if (geteuid() == 0) return Qtrue;
 #endif
 #ifdef S_IRUSR
     if (rb_stat_owned(obj))
-	return st->st_mode & S_IRUSR ? Qtrue : Qfalse;
+	return stx->stx_mode & S_IRUSR ? Qtrue : Qfalse;
 #endif
 #ifdef S_IRGRP
     if (rb_stat_grpowned(obj))
-	return st->st_mode & S_IRGRP ? Qtrue : Qfalse;
+	return stx->stx_mode & S_IRGRP ? Qtrue : Qfalse;
 #endif
 #ifdef S_IROTH
-    if (!(st->st_mode & S_IROTH)) return Qfalse;
+    if (!(stx->stx_mode & S_IROTH)) return Qfalse;
 #endif
     return Qtrue;
 }
@@ -5708,21 +5762,21 @@ rb_stat_r(VALUE obj)
 static VALUE
 rb_stat_R(VALUE obj)
 {
-    struct stat *st = get_stat(obj);
+    struct statx *stx = get_statx(obj);
 
 #ifdef USE_GETEUID
     if (getuid() == 0) return Qtrue;
 #endif
 #ifdef S_IRUSR
     if (rb_stat_rowned(obj))
-	return st->st_mode & S_IRUSR ? Qtrue : Qfalse;
+	return stx->stx_mode & S_IRUSR ? Qtrue : Qfalse;
 #endif
 #ifdef S_IRGRP
-    if (rb_group_member(get_stat(obj)->st_gid))
-	return st->st_mode & S_IRGRP ? Qtrue : Qfalse;
+    if (rb_group_member(get_statx(obj)->stx_gid))
+	return stx->stx_mode & S_IRGRP ? Qtrue : Qfalse;
 #endif
 #ifdef S_IROTH
-    if (!(st->st_mode & S_IROTH)) return Qfalse;
+    if (!(stx->stx_mode & S_IROTH)) return Qfalse;
 #endif
     return Qtrue;
 }
@@ -5744,9 +5798,9 @@ static VALUE
 rb_stat_wr(VALUE obj)
 {
 #ifdef S_IROTH
-    struct stat *st = get_stat(obj);
-    if ((st->st_mode & (S_IROTH)) == S_IROTH) {
-	return UINT2NUM(st->st_mode & (S_IRUGO|S_IWUGO|S_IXUGO));
+    struct statx *stx = get_statx(obj);
+    if ((stx->stx_mode & (S_IROTH)) == S_IROTH) {
+	return UINT2NUM(stx->stx_mode & (S_IRUGO|S_IWUGO|S_IXUGO));
     }
     else {
 	return Qnil;
@@ -5768,21 +5822,21 @@ rb_stat_wr(VALUE obj)
 static VALUE
 rb_stat_w(VALUE obj)
 {
-    struct stat *st = get_stat(obj);
+    struct statx *stx = get_statx(obj);
 
 #ifdef USE_GETEUID
     if (geteuid() == 0) return Qtrue;
 #endif
 #ifdef S_IWUSR
     if (rb_stat_owned(obj))
-	return st->st_mode & S_IWUSR ? Qtrue : Qfalse;
+	return stx->stx_mode & S_IWUSR ? Qtrue : Qfalse;
 #endif
 #ifdef S_IWGRP
     if (rb_stat_grpowned(obj))
-	return st->st_mode & S_IWGRP ? Qtrue : Qfalse;
+	return stx->stx_mode & S_IWGRP ? Qtrue : Qfalse;
 #endif
 #ifdef S_IWOTH
-    if (!(st->st_mode & S_IWOTH)) return Qfalse;
+    if (!(stx->stx_mode & S_IWOTH)) return Qfalse;
 #endif
     return Qtrue;
 }
@@ -5801,21 +5855,21 @@ rb_stat_w(VALUE obj)
 static VALUE
 rb_stat_W(VALUE obj)
 {
-    struct stat *st = get_stat(obj);
+    struct statx *stx = get_statx(obj);
 
 #ifdef USE_GETEUID
     if (getuid() == 0) return Qtrue;
 #endif
 #ifdef S_IWUSR
     if (rb_stat_rowned(obj))
-	return st->st_mode & S_IWUSR ? Qtrue : Qfalse;
+	return stx->stx_mode & S_IWUSR ? Qtrue : Qfalse;
 #endif
 #ifdef S_IWGRP
-    if (rb_group_member(get_stat(obj)->st_gid))
-	return st->st_mode & S_IWGRP ? Qtrue : Qfalse;
+    if (rb_group_member(get_statx(obj)->stx_gid))
+	return stx->stx_mode & S_IWGRP ? Qtrue : Qfalse;
 #endif
 #ifdef S_IWOTH
-    if (!(st->st_mode & S_IWOTH)) return Qfalse;
+    if (!(stx->stx_mode & S_IWOTH)) return Qfalse;
 #endif
     return Qtrue;
 }
@@ -5837,9 +5891,9 @@ static VALUE
 rb_stat_ww(VALUE obj)
 {
 #ifdef S_IROTH
-    struct stat *st = get_stat(obj);
-    if ((st->st_mode & (S_IWOTH)) == S_IWOTH) {
-	return UINT2NUM(st->st_mode & (S_IRUGO|S_IWUGO|S_IXUGO));
+    struct statx *stx = get_statx(obj);
+    if ((stx->stx_mode & (S_IWOTH)) == S_IWOTH) {
+	return UINT2NUM(stx->stx_mode & (S_IRUGO|S_IWUGO|S_IXUGO));
     }
     else {
 	return Qnil;
@@ -5863,23 +5917,23 @@ rb_stat_ww(VALUE obj)
 static VALUE
 rb_stat_x(VALUE obj)
 {
-    struct stat *st = get_stat(obj);
+    struct statx *stx = get_statx(obj);
 
 #ifdef USE_GETEUID
     if (geteuid() == 0) {
-	return st->st_mode & S_IXUGO ? Qtrue : Qfalse;
+	return stx->stx_mode & S_IXUGO ? Qtrue : Qfalse;
     }
 #endif
 #ifdef S_IXUSR
     if (rb_stat_owned(obj))
-	return st->st_mode & S_IXUSR ? Qtrue : Qfalse;
+	return stx->stx_mode & S_IXUSR ? Qtrue : Qfalse;
 #endif
 #ifdef S_IXGRP
     if (rb_stat_grpowned(obj))
-	return st->st_mode & S_IXGRP ? Qtrue : Qfalse;
+	return stx->stx_mode & S_IXGRP ? Qtrue : Qfalse;
 #endif
 #ifdef S_IXOTH
-    if (!(st->st_mode & S_IXOTH)) return Qfalse;
+    if (!(stx->stx_mode & S_IXOTH)) return Qfalse;
 #endif
     return Qtrue;
 }
@@ -5895,23 +5949,23 @@ rb_stat_x(VALUE obj)
 static VALUE
 rb_stat_X(VALUE obj)
 {
-    struct stat *st = get_stat(obj);
+    struct statx *stx = get_statx(obj);
 
 #ifdef USE_GETEUID
     if (getuid() == 0) {
-	return st->st_mode & S_IXUGO ? Qtrue : Qfalse;
+	return stx->stx_mode & S_IXUGO ? Qtrue : Qfalse;
     }
 #endif
 #ifdef S_IXUSR
     if (rb_stat_rowned(obj))
-	return st->st_mode & S_IXUSR ? Qtrue : Qfalse;
+	return stx->stx_mode & S_IXUSR ? Qtrue : Qfalse;
 #endif
 #ifdef S_IXGRP
-    if (rb_group_member(get_stat(obj)->st_gid))
-	return st->st_mode & S_IXGRP ? Qtrue : Qfalse;
+    if (rb_group_member(get_statx(obj)->stx_gid))
+	return stx->stx_mode & S_IXGRP ? Qtrue : Qfalse;
 #endif
 #ifdef S_IXOTH
-    if (!(st->st_mode & S_IXOTH)) return Qfalse;
+    if (!(stx->stx_mode & S_IXOTH)) return Qfalse;
 #endif
     return Qtrue;
 }
@@ -5930,7 +5984,7 @@ rb_stat_X(VALUE obj)
 static VALUE
 rb_stat_f(VALUE obj)
 {
-    if (S_ISREG(get_stat(obj)->st_mode)) return Qtrue;
+    if (S_ISREG(get_statx(obj)->stx_mode)) return Qtrue;
     return Qfalse;
 }
 
@@ -5948,7 +6002,7 @@ rb_stat_f(VALUE obj)
 static VALUE
 rb_stat_z(VALUE obj)
 {
-    if (get_stat(obj)->st_size == 0) return Qtrue;
+    if (get_statx(obj)->stx_size == 0) return Qtrue;
     return Qfalse;
 }
 
@@ -5965,7 +6019,7 @@ rb_stat_z(VALUE obj)
 static VALUE
 rb_stat_s(VALUE obj)
 {
-    off_t size = get_stat(obj)->st_size;
+    off_t size = get_statx(obj)->stx_size;
 
     if (size == 0) return Qnil;
     return OFFT2NUM(size);
@@ -5986,7 +6040,7 @@ static VALUE
 rb_stat_suid(VALUE obj)
 {
 #ifdef S_ISUID
-    if (get_stat(obj)->st_mode & S_ISUID) return Qtrue;
+    if (get_statx(obj)->stx_mode & S_ISUID) return Qtrue;
 #endif
     return Qfalse;
 }
@@ -6007,7 +6061,7 @@ static VALUE
 rb_stat_sgid(VALUE obj)
 {
 #ifdef S_ISGID
-    if (get_stat(obj)->st_mode & S_ISGID) return Qtrue;
+    if (get_statx(obj)->stx_mode & S_ISGID) return Qtrue;
 #endif
     return Qfalse;
 }
@@ -6028,7 +6082,7 @@ static VALUE
 rb_stat_sticky(VALUE obj)
 {
 #ifdef S_ISVTX
-    if (get_stat(obj)->st_mode & S_ISVTX) return Qtrue;
+    if (get_statx(obj)->stx_mode & S_ISVTX) return Qtrue;
 #endif
     return Qfalse;
 }
