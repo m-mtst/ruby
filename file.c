@@ -5481,6 +5481,29 @@ rb_stat_s_alloc(VALUE klass)
  * exception if the file doesn't exist).
  */
 
+#ifdef HAVE_STATX
+static VALUE
+rb_stat_init(VALUE obj, VALUE fname)
+{
+    struct stat stx, *nstx;
+
+    if (rb_statx(fname, &stx, STATX_ALL) < 0) {
+	int e = errno;
+	FilePathValue(fname);
+	rb_syserr_fail_path(e, fname);
+    }
+
+    if (DATA_PTR(obj)) {
+	xfree(DATA_PTR(obj));
+	DATA_PTR(obj) = NULL;
+    }
+    nstx = ALLOC(struct statx);
+    *nstx = stx;
+    DATA_PTR(obj) = nstx;
+
+    return Qnil;
+}
+#else
 static VALUE
 rb_stat_init(VALUE obj, VALUE fname)
 {
@@ -5501,6 +5524,7 @@ rb_stat_init(VALUE obj, VALUE fname)
 
     return Qnil;
 }
+#endif
 
 /* :nodoc: */
 static VALUE
