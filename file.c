@@ -481,7 +481,11 @@ rb_file_path(VALUE obj)
 static size_t
 stat_memsize(const void *p)
 {
+#ifdef HAVE_STATX
+    return sizeof(struct statx);
+#else
     return sizeof(struct stat);
+#endif
 }
 
 static const rb_data_type_t stat_data_type = {
@@ -490,6 +494,21 @@ static const rb_data_type_t stat_data_type = {
     0, 0, RUBY_TYPED_FREE_IMMEDIATELY
 };
 
+#ifdef HAVE_STATX
+static VALUE
+stat_new_0(VALUE klass, const struct statx *stx)
+{
+    struct statx *nstx = 0;
+    VALUE obj = TypedData_Wrap_Struct(klass, &stat_data_type, 0);
+
+    if (stx) {
+	nstx = ALLOC(struct statx);
+	*nstx = *stx;
+	RTYPEDDATA_DATA(obj) = nstx;
+    }
+    return obj;
+}
+#else
 static VALUE
 stat_new_0(VALUE klass, const struct stat *st)
 {
@@ -503,13 +522,32 @@ stat_new_0(VALUE klass, const struct stat *st)
     }
     return obj;
 }
+#endif
 
+#ifdef HAVE_STATX
+VALUE
+rb_stat_new(const struct statx *stx)
+{
+    return stat_new_0(rb_cStat, stx);
+}
+#else
 VALUE
 rb_stat_new(const struct stat *st)
 {
     return stat_new_0(rb_cStat, st);
 }
+#endif
 
+#ifdef HAVE_STATX
+static struct statx*
+get_statx(VALUE self)
+{
+    struct statx* stx;
+    TypedData_Get_Struct(self, struct statx, &stat_data_type, stx);
+    if (!st) rb_raise(rb_eTypeError, "uninitialized File::Stat");
+    return st;
+}
+#else
 static struct stat*
 get_stat(VALUE self)
 {
@@ -518,6 +556,7 @@ get_stat(VALUE self)
     if (!st) rb_raise(rb_eTypeError, "uninitialized File::Stat");
     return st;
 }
+#endif
 
 static struct timespec stat_mtimespec(const struct stat *st);
 
@@ -540,8 +579,13 @@ static VALUE
 rb_stat_cmp(VALUE self, VALUE other)
 {
     if (rb_obj_is_kind_of(other, rb_obj_class(self))) {
+#ifdef HAVE_STATX
+        struct timespec ts1 = statx_mtimespec(get_statx(self));
+        struct timespec ts2 = statx_mtimespec(get_statx(other));
+#else
         struct timespec ts1 = stat_mtimespec(get_stat(self));
         struct timespec ts2 = stat_mtimespec(get_stat(other));
+#endif
         if (ts1.tv_sec == ts2.tv_sec) {
             if (ts1.tv_nsec == ts2.tv_nsec) return INT2FIX(0);
             if (ts1.tv_nsec < ts2.tv_nsec) return INT2FIX(-1);
@@ -578,7 +622,13 @@ rb_stat_cmp(VALUE self, VALUE other)
 static VALUE
 rb_stat_dev(VALUE self)
 {
+#ifdef HAVE_STATX
+    struct statx *stx = get_statx(self);
+    dev_t dev = makedev(stx->stx_dev_major, stx->stx_dev_minor);
+    return DEVT2NUM(dev);
+#else
     return DEVT2NUM(get_stat(self)->st_dev);
+#endif
 }
 
 /*
@@ -595,7 +645,9 @@ rb_stat_dev(VALUE self)
 static VALUE
 rb_stat_dev_major(VALUE self)
 {
-#if defined(major)
+#ifdef HAVE_STATX
+    return UINT2NUM(get_statx(self)->stx_dev_major);
+#elif defined(major)
     return UINT2NUM(major(get_stat(self)->st_dev));
 #else
     return Qnil;
@@ -616,7 +668,9 @@ rb_stat_dev_major(VALUE self)
 static VALUE
 rb_stat_dev_minor(VALUE self)
 {
-#if defined(minor)
+#ifdef HAVE_STATX
+    return UINT2NUM(get_statx(self)->stx_dev_minor);
+#elif defined(minor)
     return UINT2NUM(minor(get_stat(self)->st_dev));
 #else
     return Qnil;
@@ -636,7 +690,13 @@ rb_stat_dev_minor(VALUE self)
 static VALUE
 rb_stat_ino(VALUE self)
 {
-#ifdef HAVE_STRUCT_STAT_ST_INOHIGH
+#ifdef HAVE_STATX
+# if SIZEOF_STRUCT_STATX_STX_INO > SIZEOF_LONG
+    return ULL2NUM(get_statx(self)->stx_ino);
+# else
+    return ULONG2NUM(get_statx(self)->stx_ino);
+# endif
+#elif defined(HAVE_STRUCT_STAT_ST_INOHIGH)
     /* assume INTEGER_PACK_LSWORD_FIRST and st_inohigh is just next of st_ino */
     return rb_integer_unpack(&get_stat(self)->st_ino, 2,
             SIZEOF_STRUCT_STAT_ST_INO, 0,
@@ -665,7 +725,11 @@ rb_stat_ino(VALUE self)
 static VALUE
 rb_stat_mode(VALUE self)
 {
+#ifdef HAVE_STATX
+    return UINT2NUM(ST2UINT(get_statx(self)->stx_mode));
+#else
     return UINT2NUM(ST2UINT(get_stat(self)->st_mode));
+#endif
 }
 
 /*
@@ -683,7 +747,11 @@ rb_stat_mode(VALUE self)
 static VALUE
 rb_stat_nlink(VALUE self)
 {
+#ifdef HAVE_STATX
+    return UINT2NUM(get_statx(self)->stx_nlink);
+#else
     return UINT2NUM(get_stat(self)->st_nlink);
+#endif
 }
 
 /*
@@ -699,7 +767,11 @@ rb_stat_nlink(VALUE self)
 static VALUE
 rb_stat_uid(VALUE self)
 {
+#ifdef HAVE_STATX
+    return UIDT2NUM(get_statx(self)->stx_uid);
+#else
     return UIDT2NUM(get_stat(self)->st_uid);
+#endif
 }
 
 /*
@@ -715,7 +787,11 @@ rb_stat_uid(VALUE self)
 static VALUE
 rb_stat_gid(VALUE self)
 {
+#ifdef HAVE_STATX
+    return GIDT2NUM(get_statx(self)->stx_gid);
+#else
     return GIDT2NUM(get_stat(self)->st_gid);
+#endif
 }
 
 /*
@@ -733,7 +809,11 @@ rb_stat_gid(VALUE self)
 static VALUE
 rb_stat_rdev(VALUE self)
 {
-#ifdef HAVE_STRUCT_STAT_ST_RDEV
+#ifdef HAVE_STATX
+    struct statx *stx = get_statx(self);
+    dev_t dev = makedev(stx->stx_rdev_major, stx->stx_rdev_minor);
+    return DEVT2NUM(dev);
+#elif defined(HAVE_STRUCT_STAT_ST_RDEV)
     return DEVT2NUM(get_stat(self)->st_rdev);
 #else
     return Qnil;
@@ -754,7 +834,9 @@ rb_stat_rdev(VALUE self)
 static VALUE
 rb_stat_rdev_major(VALUE self)
 {
-#if defined(HAVE_STRUCT_STAT_ST_RDEV) && defined(major)
+#ifdef HAVE_STATX
+    return UINT2NUM(get_statx(self)->stx_rdev_major);
+#elif defined(HAVE_STRUCT_STAT_ST_RDEV) && defined(major)
     return UINT2NUM(major(get_stat(self)->st_rdev));
 #else
     return Qnil;
@@ -775,7 +857,9 @@ rb_stat_rdev_major(VALUE self)
 static VALUE
 rb_stat_rdev_minor(VALUE self)
 {
-#if defined(HAVE_STRUCT_STAT_ST_RDEV) && defined(minor)
+#ifdef HAVE_STATX
+    return UINT2NUM(get_statx(self)->stx_rdev_minor);
+#elif defined(HAVE_STRUCT_STAT_ST_RDEV) && defined(minor)
     return UINT2NUM(minor(get_stat(self)->st_rdev));
 #else
     return Qnil;
@@ -794,7 +878,11 @@ rb_stat_rdev_minor(VALUE self)
 static VALUE
 rb_stat_size(VALUE self)
 {
+#ifdef HAVE_STATX
+    return OFFT2NUM(get_statx(self)->stx_size);
+#else
     return OFFT2NUM(get_stat(self)->st_size);
+#endif
 }
 
 /*
@@ -811,7 +899,9 @@ rb_stat_size(VALUE self)
 static VALUE
 rb_stat_blksize(VALUE self)
 {
-#ifdef HAVE_STRUCT_STAT_ST_BLKSIZE
+#ifdef HAVE_STATX
+    return ULONG2NUM(get_statx(self)->stx_blksize);
+#elif defined(HAVE_STRUCT_STAT_ST_BLKSIZE)
     return ULONG2NUM(get_stat(self)->st_blksize);
 #else
     return Qnil;
@@ -832,7 +922,13 @@ rb_stat_blksize(VALUE self)
 static VALUE
 rb_stat_blocks(VALUE self)
 {
-#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
+#ifdef HAVE_STATX
+# if SIZEOF_STRUCT_STATX_STX_BLOCKS > SIZEOF_LONG
+    return ULL2NUM(get_statx(self)->stx_blocks);
+# else
+    return ULONG2NUM(get_statx(self)->stx_blocks);
+# endif
+#elif defined(HAVE_STRUCT_STAT_ST_BLOCKS)
 # if SIZEOF_STRUCT_STAT_ST_BLOCKS > SIZEOF_LONG
     return ULL2NUM(get_stat(self)->st_blocks);
 # else
@@ -843,77 +939,137 @@ rb_stat_blocks(VALUE self)
 #endif
 }
 
+#ifdef HAVE_STATX
+static struct timespec
+statx_atimespec(const struct statx *stx)
+{
+    struct timespec ts;
+    ts.tv_sec = stx->stx_atime.tv_sec;
+    ts.tv_nsec = stx->stx_atime.tv_nsec;
+    return ts;
+}
+#else
 static struct timespec
 stat_atimespec(const struct stat *st)
 {
     struct timespec ts;
     ts.tv_sec = st->st_atime;
-#if defined(HAVE_STRUCT_STAT_ST_ATIM)
+# if defined(HAVE_STRUCT_STAT_ST_ATIM)
     ts.tv_nsec = st->st_atim.tv_nsec;
-#elif defined(HAVE_STRUCT_STAT_ST_ATIMESPEC)
+# elif defined(HAVE_STRUCT_STAT_ST_ATIMESPEC)
     ts.tv_nsec = st->st_atimespec.tv_nsec;
-#elif defined(HAVE_STRUCT_STAT_ST_ATIMENSEC)
+# elif defined(HAVE_STRUCT_STAT_ST_ATIMENSEC)
     ts.tv_nsec = (long)st->st_atimensec;
-#else
+# else
     ts.tv_nsec = 0;
-#endif
+# endif
     return ts;
 }
+#endif
 
+#ifdef HAVE_STATX
+static VALUE
+statx_atime(const struct stat *stx)
+{
+    struct timespec ts = statx_atimespec(stx);
+    return rb_time_nano_new(ts.tv_sec, ts.tv_nsec);
+}
+#else
 static VALUE
 stat_atime(const struct stat *st)
 {
     struct timespec ts = stat_atimespec(st);
     return rb_time_nano_new(ts.tv_sec, ts.tv_nsec);
 }
+#endif
 
+#ifdef HAVE_STATX
+static struct timespec
+statx_mtimespec(const struct statx *stx)
+{
+    struct timespec ts;
+    ts.tv_sec = stx->stx_mtime.tv_sec;
+    ts.tv_nsec = stx->stx_mtime.tv_nsec;
+    return ts;
+}
+#else
 static struct timespec
 stat_mtimespec(const struct stat *st)
 {
     struct timespec ts;
     ts.tv_sec = st->st_mtime;
-#if defined(HAVE_STRUCT_STAT_ST_MTIM)
+# if defined(HAVE_STRUCT_STAT_ST_MTIM)
     ts.tv_nsec = st->st_mtim.tv_nsec;
-#elif defined(HAVE_STRUCT_STAT_ST_MTIMESPEC)
+# elif defined(HAVE_STRUCT_STAT_ST_MTIMESPEC)
     ts.tv_nsec = st->st_mtimespec.tv_nsec;
-#elif defined(HAVE_STRUCT_STAT_ST_MTIMENSEC)
+# elif defined(HAVE_STRUCT_STAT_ST_MTIMENSEC)
     ts.tv_nsec = (long)st->st_mtimensec;
-#else
+# else
     ts.tv_nsec = 0;
-#endif
+# endif
     return ts;
 }
+#endif
 
+#ifdef HAVE_STATX
+static VALUE
+statx_mtime(const struct statx *stx)
+{
+    struct timespec ts = statx_mtimespec(stx);
+    return rb_time_nano_new(ts.tv_sec, ts.tv_nsec);
+}
+#else
 static VALUE
 stat_mtime(const struct stat *st)
 {
     struct timespec ts = stat_mtimespec(st);
     return rb_time_nano_new(ts.tv_sec, ts.tv_nsec);
 }
+#endif
 
+#ifdef HAVE_STATX
+static struct timespec
+statx_ctimespec(const struct statx *stx)
+{
+    struct timespec ts;
+    ts.tv_sec = stx->stx_ctime.tv_sec;
+    ts.tv_nsec = stx->stx_ctime.tv_nsec;
+    return ts;
+}
+#else
 static struct timespec
 stat_ctimespec(const struct stat *st)
 {
     struct timespec ts;
     ts.tv_sec = st->st_ctime;
-#if defined(HAVE_STRUCT_STAT_ST_CTIM)
+# if defined(HAVE_STRUCT_STAT_ST_CTIM)
     ts.tv_nsec = st->st_ctim.tv_nsec;
-#elif defined(HAVE_STRUCT_STAT_ST_CTIMESPEC)
+# elif defined(HAVE_STRUCT_STAT_ST_CTIMESPEC)
     ts.tv_nsec = st->st_ctimespec.tv_nsec;
-#elif defined(HAVE_STRUCT_STAT_ST_CTIMENSEC)
+# elif defined(HAVE_STRUCT_STAT_ST_CTIMENSEC)
     ts.tv_nsec = (long)st->st_ctimensec;
-#else
+# else
     ts.tv_nsec = 0;
-#endif
+# endif
     return ts;
 }
+#endif
 
+#ifdef HAVE_STATX
+static VALUE
+statx_ctime(const struct statx *stx)
+{
+    struct timespec ts = statx_ctimespec(stx);
+    return rb_time_nano_new(ts.tv_sec, ts.tv_nsec);
+}
+#else
 static VALUE
 stat_ctime(const struct stat *st)
 {
     struct timespec ts = stat_ctimespec(st);
     return rb_time_nano_new(ts.tv_sec, ts.tv_nsec);
 }
+#endif
 
 #define HAVE_STAT_BIRTHTIME
 #if defined(HAVE_STRUCT_STAT_ST_BIRTHTIMESPEC)
@@ -945,7 +1101,11 @@ typedef struct stat statx_data;
 static VALUE
 rb_stat_atime(VALUE self)
 {
+#ifdef HAVE_STATX
+    return statx_atime(get_statx(self));
+#else
     return stat_atime(get_stat(self));
+#endif
 }
 
 /*
@@ -961,7 +1121,11 @@ rb_stat_atime(VALUE self)
 static VALUE
 rb_stat_mtime(VALUE self)
 {
+#ifdef HAVE_STATX
+    return statx_mtime(get_statx(self));
+#else
     return stat_mtime(get_stat(self));
+#endif
 }
 
 /*
@@ -981,7 +1145,11 @@ rb_stat_mtime(VALUE self)
 static VALUE
 rb_stat_ctime(VALUE self)
 {
+#ifdef HAVE_STATX
+    return statx_ctime(get_statx(self));
+#else
     return stat_ctime(get_stat(self));
+#endif
 }
 
 #if defined(HAVE_STAT_BIRTHTIME)
@@ -1058,8 +1226,14 @@ rb_stat_inspect(VALUE self)
 #endif
     };
 
+#ifdef HAVE_STATX
+    struct statx* st;
+    TypedData_Get_Struct(self, struct statx, &stat_data_type, st);
+#else
     struct stat* st;
     TypedData_Get_Struct(self, struct stat, &stat_data_type, st);
+#endif
+
     if (!st) {
         return rb_sprintf("#<%s: uninitialized>", rb_obj_classname(self));
     }
@@ -5427,6 +5601,29 @@ rb_stat_s_alloc(VALUE klass)
  * exception if the file doesn't exist).
  */
 
+#ifdef HAVE_STATX
+static VALUE
+rb_stat_init(VALUE obj, VALUE fname)
+{
+    struct stat stx, *nstx;
+
+    if (rb_statx(fname, &stx, STATX_ALL) < 0) {
+       int e = errno;
+       FilePathValue(fname);
+       rb_syserr_fail_path(e, fname);
+    }
+
+    if (DATA_PTR(obj)) {
+       xfree(DATA_PTR(obj));
+       DATA_PTR(obj) = NULL;
+    }
+    nstx = ALLOC(struct statx);
+    *nstx = stx;
+    DATA_PTR(obj) = nstx;
+
+    return Qnil;
+}
+#else
 static VALUE
 rb_stat_init(VALUE obj, VALUE fname)
 {
@@ -5447,6 +5644,7 @@ rb_stat_init(VALUE obj, VALUE fname)
 
     return Qnil;
 }
+#endif
 
 /* :nodoc: */
 static VALUE
