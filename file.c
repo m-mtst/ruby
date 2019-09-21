@@ -97,6 +97,10 @@ int flock(int, int);
 #define lstat stat
 #endif
 
+#ifndef HAVE_STATX
+#include "ruby/statx.h"
+#endif
+
 /* define system APIs */
 #ifdef _WIN32
 #include "win32/file.h"
@@ -481,7 +485,7 @@ rb_file_path(VALUE obj)
 static size_t
 stat_memsize(const void *p)
 {
-    return sizeof(struct stat);
+    return sizeof(struct statx);
 }
 
 static const rb_data_type_t stat_data_type = {
@@ -491,32 +495,59 @@ static const rb_data_type_t stat_data_type = {
 };
 
 static VALUE
-stat_new_0(VALUE klass, const struct stat *st)
+stat_new_0(VALUE klass, const struct statx *stx)
 {
-    struct stat *nst = 0;
+    struct statx *nstx = NULL;
     VALUE obj = TypedData_Wrap_Struct(klass, &stat_data_type, 0);
 
-    if (st) {
-	nst = ALLOC(struct stat);
-	*nst = *st;
-	RTYPEDDATA_DATA(obj) = nst;
+    if (stx) {
+	nstx = ALLOC(struct statx);
+	*nstx = *stx;
+	RTYPEDDATA_DATA(obj) = nstx;
     }
     return obj;
 }
 
+#define STATX_BASIC_STATS 0x07ffU
+
 VALUE
 rb_stat_new(const struct stat *st)
 {
-    return stat_new_0(rb_cStat, st);
+    struct statx stx = {
+      .stx_mask = STATX_BASIC_STATS,
+      .stx_blksize = st->st_blksize,
+      .stx_nlink = st->st_nlink,
+      .stx_uid = st->st_uid,
+      .stx_gid = st->st_gid,
+      .stx_mode = st->st_mode,
+      .stx_ino = st->st_ino,
+      .stx_size = st->st_size,
+      .stx_blocks = st->st_blocks,
+      /* .stx_atime = statx_convert_timestamp (st.st_atim), */
+      /* .stx_ctime = statx_convert_timestamp (st.st_ctim), */
+      /* .stx_mtime = statx_convert_timestamp (st.st_mtim), */
+      .stx_rdev_major = major (st->st_rdev),
+      .stx_rdev_minor = minor (st->st_rdev),
+      .stx_dev_major = major (st->st_dev),
+      .stx_dev_minor = minor (st->st_dev),
+    };
+
+    return stat_new_0(rb_cStat, &stx);
 }
 
-static struct stat*
-get_stat(VALUE self)
+static VALUE
+rb_stat_new_statx(const struct statx *stx)
 {
-    struct stat* st;
-    TypedData_Get_Struct(self, struct stat, &stat_data_type, st);
-    if (!st) rb_raise(rb_eTypeError, "uninitialized File::Stat");
-    return st;
+    return stat_new_0(rb_cStat, stx);
+}
+
+static struct statx*
+get_statx(VALUE self)
+{
+    struct statx* stx;
+    TypedData_Get_Struct(self, struct statx, &stat_data_type, stx);
+    if (!stx) rb_raise(rb_eTypeError, "uninitialized File::Stat");
+    return stx;
 }
 
 static struct timespec stat_mtimespec(const struct stat *st);
@@ -915,7 +946,18 @@ stat_ctime(const struct stat *st)
     return rb_time_nano_new(ts.tv_sec, ts.tv_nsec);
 }
 
-#define HAVE_STAT_BIRTHTIME
+static VALUE
+statx_ctime(const struct statx *stx)
+{
+    return rb_time_nano_new(stx->stx_ctime.tv_sec, stx->stx_ctime.tv_nsec);
+}
+
+static VALUE
+statx_btime(const struct statx *stx)
+{
+    return rb_time_nano_new(stx->stx_btime.tv_sec, stx->stx_btime.tv_nsec);
+}
+
 #if defined(HAVE_STRUCT_STAT_ST_BIRTHTIMESPEC)
 typedef struct stat statx_data;
 static VALUE
@@ -924,11 +966,11 @@ stat_birthtime(const struct stat *st)
     const struct timespec *ts = &st->st_birthtimespec;
     return rb_time_nano_new(ts->tv_sec, ts->tv_nsec);
 }
+# define HAVE_STAT_BIRTHTIME
 #elif defined(_WIN32)
 typedef struct stat statx_data;
 # define stat_birthtime stat_ctime
-#else
-# undef HAVE_STAT_BIRTHTIME
+# define HAVE_STAT_BIRTHTIME
 #endif
 
 /*
@@ -1010,7 +1052,7 @@ rb_stat_ctime(VALUE self)
 static VALUE
 rb_stat_birthtime(VALUE self)
 {
-    return stat_birthtime(get_stat(self));
+    return statx_btime(get_statx(self));
 }
 #else
 # define rb_stat_birthtime rb_f_notimplement
@@ -5427,6 +5469,29 @@ rb_stat_s_alloc(VALUE klass)
  * exception if the file doesn't exist).
  */
 
+#ifdef HAVE_STATX
+static VALUE
+rb_stat_init(VALUE obj, VALUE fname)
+{
+    struct stat stx, *nstx;
+
+    if (rb_statx(fname, &stx, STATX_ALL) < 0) {
+	int e = errno;
+	FilePathValue(fname);
+	rb_syserr_fail_path(e, fname);
+    }
+
+    if (DATA_PTR(obj)) {
+	xfree(DATA_PTR(obj));
+	DATA_PTR(obj) = NULL;
+    }
+    nstx = ALLOC(struct statx);
+    *nstx = stx;
+    DATA_PTR(obj) = nstx;
+
+    return Qnil;
+}
+#else
 static VALUE
 rb_stat_init(VALUE obj, VALUE fname)
 {
@@ -5447,6 +5512,7 @@ rb_stat_init(VALUE obj, VALUE fname)
 
     return Qnil;
 }
+#endif
 
 /* :nodoc: */
 static VALUE
