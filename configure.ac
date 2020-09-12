@@ -2396,6 +2396,29 @@ AS_IF([test "$rb_cv_rshift_sign" = yes], [
   AC_DEFINE(RSHIFT(x,y), (((x)<0) ? ~((~(x))>>(int)(y)) : (x)>>(int)(y)))
 ])
 
+AC_CACHE_CHECK([for copy_file_range],
+  rb_cv_use_copy_file_range,
+  [AC_TRY_RUN([
+#include <unistd.h>
+
+int
+main()
+{
+#ifdef HAVE_COPY_FILE_RANGE
+   return 0;
+#elif __NR_copy_file_range
+   return syscall(__NR_copy_file_range, 0, NULL, 0, NULL, 0, 0);
+#else
+   return 1;
+#endif
+}
+],
+  [rb_cv_use_copy_file_range=yes],
+  [rb_cv_use_copy_file_range=no])])
+AS_IF([test "$rb_cv_use_copy_file_range" = yes], [
+  AC_DEFINE(USE_COPY_FILE_RANGE)
+])
+
 AS_CASE(["$ac_cv_func_gettimeofday:$ac_cv_func_clock_gettime"],
 [*yes*], [],
 [
