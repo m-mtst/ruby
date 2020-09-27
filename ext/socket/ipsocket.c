@@ -165,6 +165,201 @@ init_inetsock_internal(VALUE v)
     return rsock_init_sock(arg->sock, fd);
 }
 
+static int
+wait_connectable(int fd, struct timeval *timeout)
+{
+    int sockerr, revents;
+    socklen_t sockerrlen;
+
+    sockerrlen = (socklen_t)sizeof(sockerr);
+    if (getsockopt(fd, SOL_SOCKET, SO_ERROR, (void *)&sockerr, &sockerrlen) < 0)
+        return -1;
+
+    /* necessary for non-blocking sockets (at least ECONNREFUSED) */
+    switch (sockerr) {
+      case 0:
+        break;
+#ifdef EALREADY
+      case EALREADY:
+#endif
+#ifdef EISCONN
+      case EISCONN:
+#endif
+#ifdef ECONNREFUSED
+      case ECONNREFUSED:
+#endif
+#ifdef EHOSTUNREACH
+      case EHOSTUNREACH:
+#endif
+        errno = sockerr;
+        return -1;
+    }
+
+    /*
+     * Stevens book says, successful finish turn on RB_WAITFD_OUT and
+     * failure finish turn on both RB_WAITFD_IN and RB_WAITFD_OUT.
+     * So it's enough to wait only RB_WAITFD_OUT and check the pending error
+     * by getsockopt().
+     *
+     * Note: rb_wait_for_single_fd already retries on EINTR/ERESTART
+     */
+    revents = rb_wait_for_single_fd(fd, RB_WAITFD_IN|RB_WAITFD_OUT, timeout);
+
+    if (revents < 0)
+        return -1;
+
+    sockerrlen = (socklen_t)sizeof(sockerr);
+    if (getsockopt(fd, SOL_SOCKET, SO_ERROR, (void *)&sockerr, &sockerrlen) < 0)
+        return -1;
+
+    switch (sockerr) {
+      case 0:
+      /*
+       * be defensive in case some platforms set SO_ERROR on the original,
+       * interrupted connect()
+       */
+
+	/* when the connection timed out, no errno is set and revents is 0. */
+	if (timeout && revents == 0) {
+	    errno = ETIMEDOUT;
+	    return -1;
+	}
+      case EINTR:
+#ifdef ERESTART
+      case ERESTART:
+#endif
+      case EAGAIN:
+#ifdef EINPROGRESS
+      case EINPROGRESS:
+#endif
+#ifdef EALREADY
+      case EALREADY:
+#endif
+#ifdef EISCONN
+      case EISCONN:
+#endif
+	return 0; /* success */
+      default:
+        /* likely (but not limited to): ECONNREFUSED, ETIMEDOUT, EHOSTUNREACH */
+        errno = sockerr;
+        return -1;
+    }
+
+    return 0;
+}
+
+static VALUE
+init_inetsock_internal_happy(VALUE v)
+{
+    struct inetsock_arg *arg = (void *)v;
+    int error = 0;
+    int type = arg->type;
+    struct addrinfo *res;
+    int fd, status = 0;
+    int family = AF_UNSPEC;
+    const char *syscall = 0;
+    /* int preferred_family = 0; */
+    struct timeval timeout;
+    int i, maxfd = 0, oflags;
+    rb_fdset_t writefds;
+    VALUE fds_ary = rb_ary_tmp_new(1);
+
+#ifdef HAVE_GETADDRINFO_A
+    arg->remote.res = rsock_addrinfo_a(arg->remote.host, arg->remote.serv,
+				       family, SOCK_STREAM, 0,
+				       arg->resolv_timeout);
+#else
+    arg->remote.res = rsock_addrinfo(arg->remote.host, arg->remote.serv,
+				     family, SOCK_STREAM, 0);
+#endif
+
+    arg->fd = fd = -1;
+
+    /* set timeout for wait_connectable() */
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 250000; /* 250ms is a recommended value in RFC8305 */
+
+    rb_fd_init(&writefds);
+
+    for (res = arg->remote.res->ai; res; res = res->ai_next) {
+        printf("%d\n", res->ai_family == AF_INET6);
+#if !defined(INET6) && defined(AF_INET6)
+	if (res->ai_family == AF_INET6)
+	    continue;
+#endif
+        res->ai_socktype |= SOCK_NONBLOCK;
+	status = rsock_socket(res->ai_family,res->ai_socktype,res->ai_protocol);
+	syscall = "socket(2)";
+	fd = status;
+	if (fd < 0) {
+	    error = errno;
+	    continue;
+	}
+	arg->fd = fd;
+        if (status >= 0) {
+            /* status = rsock_connect(fd, res->ai_addr, res->ai_addrlen, */
+            /*                        (type == INET_SOCKS)); */
+            status = connect(fd, res->ai_addr, res->ai_addrlen);
+            syscall = "connect(2)";
+        }
+
+	if (status < 0 && errno != EINPROGRESS) {
+	    error = errno;
+	    close(fd);
+	    arg->fd = fd = -1;
+	    continue;
+	} else {
+            /* preferred_family = res->ai_family; */
+            status = wait_connectable(fd, &timeout);
+            if (status == -1) {
+                if (errno == ETIMEDOUT) {
+                    rb_fd_set(fd, &writefds);
+                    rb_ary_push(fds_ary, INT2FIX(fd));
+                    if (fd > maxfd) { maxfd = fd; }
+                }
+                continue;
+            }
+            rb_fd_set(fd, &writefds);
+            rb_ary_push(fds_ary, INT2FIX(fd));
+            if (fd > maxfd) { maxfd = fd; }
+            break;
+        }
+    }
+
+    printf("select\n");
+    status = rb_fd_select(maxfd+1, NULL, &writefds, NULL, NULL);
+    /* status = rb_thread_fd_select(maxfd+1, &writefds, &writefds, NULL, NULL); */
+
+    for (i=0; i<RARRAY_LEN(fds_ary); i++) {
+	int _fd = FIX2INT(RARRAY_AREF(fds_ary, i));
+        if (rb_fd_isset(_fd, &writefds)) { fd = _fd; }
+    }
+
+    /* TODO: close fds */
+
+    if (status < 0) {
+	VALUE host, port;
+
+        host = arg->remote.host;
+        port = arg->remote.serv;
+
+	rsock_syserr_fail_host_port(error, syscall, host, port);
+    }
+
+    arg->fd = -1;
+
+    /* unset nonblock flag */
+    oflags = fcntl(fd, F_GETFL);
+    if (oflags == -1) { rb_sys_fail(0); }
+    oflags &= ~O_NONBLOCK;
+    if (fcntl(fd, F_SETFL, oflags) == -1) {
+	rb_sys_fail(0);
+    }
+
+    /* create new instance */
+    return rsock_init_sock(arg->sock, fd);
+}
+
 VALUE
 rsock_init_inetsock(VALUE sock, VALUE remote_host, VALUE remote_serv,
 	            VALUE local_host, VALUE local_serv, int type,
@@ -181,6 +376,12 @@ rsock_init_inetsock(VALUE sock, VALUE remote_host, VALUE remote_serv,
     arg.type = type;
     arg.fd = -1;
     arg.resolv_timeout = resolv_timeout;
+
+    if (type == INET_CLIENT && NIL_P(local_host) && NIL_P(local_serv)) {
+        return rb_ensure(init_inetsock_internal_happy, (VALUE)&arg,
+                         inetsock_cleanup, (VALUE)&arg);
+    }
+
     return rb_ensure(init_inetsock_internal, (VALUE)&arg,
 		     inetsock_cleanup, (VALUE)&arg);
 }
