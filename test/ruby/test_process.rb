@@ -2498,4 +2498,14 @@ EOS
     end
     assert_empty(Process.waitall)
   end
+
+  def test_getaddrinfo_after_fork
+    skip "fork not supported" unless Process.respond_to?(:fork)
+    assert_normal_exit(<<-"end;", '[ruby-core:100329] [Bug #17220]')
+      require "socket"
+      Socket.getaddrinfo("localhost", nil)
+      pid = fork { Socket.getaddrinfo("localhost", nil) }
+      assert_equal pid, Timeout.timeout(30) { Process.wait(pid) }
+    end;
+  end
 end

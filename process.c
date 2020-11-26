@@ -331,6 +331,9 @@ static ID id_CLOCK_BASED_CLOCK_PROCESS_CPUTIME_ID;
 static ID id_MACH_ABSOLUTE_TIME_BASED_CLOCK_MONOTONIC;
 #endif
 static ID id_hertz;
+#ifdef HAVE_GETADDRINFO_A
+static VALUE getaddrinfo_a_before_exec_func;
+#endif
 
 /* execv and execl are async-signal-safe since SUSv4 (POSIX.1-2008, XPG7) */
 #if defined(__sun) && !defined(_XPG7) /* Solaris 10, 9, ... */
@@ -1536,6 +1539,24 @@ proc_detach(VALUE obj, VALUE pid)
     return rb_detach_process(NUM2PIDT(pid));
 }
 
+
+#ifdef HAVE_GETADDRINFO_A
+static void
+getaddrinfo_a_before_exec(void)
+{
+    if (!NIL_P(getaddrinfo_a_before_exec_func)) {
+        ((void(*)())getaddrinfo_a_before_exec_func)();
+    }
+}
+
+static void
+getaddrinfo_a_before_exec_setter(VALUE val, ID id, VALUE *var)
+{
+    if (!NIL_P(getaddrinfo_a_before_exec_func)) return;
+    *var = val;
+}
+#endif
+
 /* This function should be async-signal-safe.  Actually it is. */
 static void
 before_exec_async_signal_safe(void)
@@ -1545,6 +1566,11 @@ before_exec_async_signal_safe(void)
 static void
 before_exec_non_async_signal_safe(void)
 {
+#ifdef HAVE_GETADDRINFO_A
+    /* A mitigation for [Bug #17220]. See ext/socket/raddrinfo.c */
+    getaddrinfo_a_before_exec();
+#endif
+
     /*
      * On Mac OS X 10.5.x (Leopard) or earlier, exec() may return ENOTSUP
      * if the process have multiple threads. Therefore we have to kill
@@ -8911,6 +8937,11 @@ Init_process(void)
     id_MACH_ABSOLUTE_TIME_BASED_CLOCK_MONOTONIC = rb_intern_const("MACH_ABSOLUTE_TIME_BASED_CLOCK_MONOTONIC");
 #endif
     id_hertz = rb_intern_const("hertz");
+
+#ifdef HAVE_GETADDRINFO_A
+    getaddrinfo_a_before_exec_func = Qnil;
+    rb_define_hooked_variable("$__getaddrinfo_a_before_exec", &getaddrinfo_a_before_exec_func, NULL, getaddrinfo_a_before_exec_setter);
+#endif
 
     InitVM(process);
 }
